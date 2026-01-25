@@ -1,7 +1,7 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { ApiError } from "@/types";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 // Base URL without /api for static files
 const BASE_URL = API_URL.replace(/\/api$/, "");
 
@@ -36,13 +36,23 @@ export function getImageUrl(path: string | null | undefined): string {
   return `${BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
+// Debug: Log API URL in development
+if (import.meta.env.DEV) {
+  console.log("[API] Base URL:", API_URL);
+}
+
 // Request interceptor
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    // Log requests in development
+    if (import.meta.env.DEV) {
+      console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
+    }
     // Access token is stored in HTTP-only cookies, so nothing to add here
     return config;
   },
   (error) => {
+    console.error("[API] Request error:", error);
     return Promise.reject(error);
   },
 );

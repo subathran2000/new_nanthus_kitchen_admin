@@ -68,8 +68,34 @@ export function LoginPage() {
       setIsSubmitting(true);
       setError(null);
       await login(data);
+      // Navigation is handled in the login function
     } catch (err: any) {
-      setError(err.response?.data?.message || "Invalid credentials");
+      // Error handling is done in the login function, but we also set local error for the Alert
+      let errorMessage = "Invalid credentials. Please try again.";
+      
+      if (err.response) {
+        const status = err.response.status;
+        const serverMessage = err.response.data?.message;
+        
+        if (status === 401) {
+          errorMessage = serverMessage || "Invalid email or password";
+        } else if (status === 403) {
+          errorMessage = serverMessage || "Your account has been deactivated";
+        } else if (status === 429) {
+          errorMessage = "Too many login attempts. Please try again later.";
+        } else if (status >= 500) {
+          errorMessage = "Server error. Please try again later.";
+        } else if (serverMessage) {
+          errorMessage = serverMessage;
+        }
+      } else if (err.request) {
+        // Network error
+        errorMessage = "Unable to connect to server. Please check your connection.";
+      } else if (err.message && err.message !== "Login failed. Please try again.") {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }

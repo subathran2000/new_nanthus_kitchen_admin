@@ -100,8 +100,8 @@ function App() {
                 <Route path="settings" element={<SettingsPage />} />
               </Route>
 
-              {/* Catch all */}
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              {/* Catch all - redirect to login for unauthenticated users */}
+              <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>
           </AuthProvider>
         </BrowserRouter>
