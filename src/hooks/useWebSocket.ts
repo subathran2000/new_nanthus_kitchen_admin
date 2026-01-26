@@ -93,6 +93,7 @@ export function useWebSocket() {
     // Create socket connection with fallback transport
     socketRef.current = io(`${WS_URL}/admin`, {
       transports: ["polling", "websocket"], // Start with polling, upgrade to websocket
+      withCredentials: true, // Required for CORS with credentials
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 2000,
