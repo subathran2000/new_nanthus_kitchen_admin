@@ -48,6 +48,7 @@ import { useForm, Controller } from "react-hook-form";
 import toast from "react-hot-toast";
 import { format } from "date-fns";
 import api from "../../lib/api";
+import { sanitizeHtml } from "../../lib/sanitize";
 import { useAuth } from "../../contexts/AuthContext";
 import type { NewsletterCampaign, NewsletterStatus } from "../../types";
 
@@ -876,7 +877,7 @@ Nanthu's Kitchen Team`}
             <Box
               sx={{ bgcolor: "white", p: 2 }}
               dangerouslySetInnerHTML={{
-                __html: viewingItem?.content || "<p>No content</p>",
+                __html: sanitizeHtml(viewingItem?.content) || "<p>No content</p>",
               }}
             />
           </Paper>

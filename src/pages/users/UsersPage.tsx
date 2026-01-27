@@ -230,11 +230,13 @@ export function UsersPage() {
         const roleLabels = {
           super_admin: "Super Admin",
           admin: "Admin",
+          manager: "Manager",
           visitor: "Visitor",
         };
         const roleColors = {
           super_admin: "error" as const,
           admin: "primary" as const,
+          manager: "info" as const,
           visitor: "default" as const,
         };
         return (
@@ -474,6 +476,18 @@ export function UsersPage() {
                           </MenuItem>,
                           <MenuItem key="admin" value="admin">
                             Admin
+                          </MenuItem>,
+                          <MenuItem key="manager" value="manager">
+                            Manager
+                          </MenuItem>,
+                          <MenuItem key="visitor" value="visitor">
+                            Visitor
+                          </MenuItem>,
+                        ]
+                      ) : currentUser?.role === "admin" ? (
+                        [
+                          <MenuItem key="manager" value="manager">
+                            Manager
                           </MenuItem>,
                           <MenuItem key="visitor" value="visitor">
                             Visitor

@@ -3,9 +3,16 @@ import { io, Socket } from "socket.io-client";
 import { useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 
-// Derive WebSocket URL from API URL (remove /api suffix to get base URL)
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
-const WS_URL = import.meta.env.VITE_WS_URL || API_URL.replace(/\/api$/, "");
+// In production, use relative URL to go through nginx proxy
+// In development, derive WebSocket URL from API URL
+const isProduction = import.meta.env.PROD;
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
+// For production: use empty string (relative URL) so socket.io uses same origin
+// For development: use the base URL without /api
+const WS_URL = isProduction 
+  ? "" 
+  : (import.meta.env.VITE_WS_URL || API_URL.replace(/\/api$/, ""));
 
 interface WebSocketMessage {
   type?: string;
@@ -84,14 +91,11 @@ export function useWebSocket() {
   }, [queryClient]);
 
   useEffect(() => {
-    // Only connect if we have a valid URL
-    if (!WS_URL) {
-      console.warn("WebSocket URL not configured");
-      return;
-    }
-
     // Create socket connection with fallback transport
-    socketRef.current = io(`${WS_URL}/admin`, {
+    // In production, WS_URL is empty so socket.io connects to the same origin (through nginx proxy)
+    const socketUrl = WS_URL ? `${WS_URL}/admin` : "/admin";
+    
+    socketRef.current = io(socketUrl, {
       transports: ["polling", "websocket"], // Start with polling, upgrade to websocket
       withCredentials: true, // Required for CORS with credentials
       reconnection: true,
@@ -100,6 +104,7 @@ export function useWebSocket() {
       reconnectionDelayMax: 10000,
       timeout: 20000,
       autoConnect: true,
+      path: isProduction ? "/socket.io" : undefined, // Use default path through nginx proxy
     });
 
     const socket = socketRef.current;

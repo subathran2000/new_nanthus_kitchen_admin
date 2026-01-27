@@ -11,7 +11,7 @@ export interface User {
   updatedAt: string;
 }
 
-export type UserRole = "super_admin" | "admin" | "visitor";
+export type UserRole = "super_admin" | "admin" | "manager" | "visitor";
 
 // Auth types
 export interface LoginCredentials {
@@ -248,9 +248,12 @@ export interface PaginatedResponse<T> {
 }
 
 export interface ApiError {
-  message: string;
+  message: string | string[];
   statusCode: number;
   error?: string;
+  timestamp?: string;
+  path?: string;
+  method?: string;
 }
 
 export interface ReorderItem {

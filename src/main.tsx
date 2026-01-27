@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { Toaster } from "react-hot-toast";
 import App from "./App";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
 import "@fontsource/inter/600.css";
@@ -25,8 +26,9 @@ const queryClient = new QueryClient({
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <App />
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <App />
       <Toaster
         position="top-right"
         toastOptions={{
@@ -47,7 +49,8 @@ createRoot(document.getElementById("root")!).render(
           },
         }}
       />
-      <ReactQueryDevtools initialIsOpen={false} />
-    </QueryClientProvider>
+        <ReactQueryDevtools initialIsOpen={false} />
+      </QueryClientProvider>
+    </ErrorBoundary>
   </StrictMode>
 );

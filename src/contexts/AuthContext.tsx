@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, ReactNode } from "react";
+import { createContext, useContext, useEffect, useCallback, ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { useAuthStore } from "@/stores/authStore";
 import api from "@/lib/api";
@@ -26,39 +26,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading,
     setUser,
     setIsLoading,
+    setLastAuthCheck,
     logout: clearAuth,
   } = useAuthStore();
 
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     try {
       setIsLoading(true);
       const response = await api.get<User>("/auth/me");
       if (response.data && response.data.id) {
         setUser(response.data);
+        setLastAuthCheck(Date.now());
       } else {
         // Invalid response, clear auth
         clearAuth();
       }
-    } catch (error) {
-      // Clear any stale authenticated state
-      clearAuth();
+    } catch (error: any) {
+      // Only clear auth on 401 errors, not on network errors
+      // This prevents logout on temporary network issues
+      if (error.response?.status === 401) {
+        clearAuth();
+      } else if (!error.response) {
+        // Network error - keep existing auth state if we have one
+        // User will be validated on next successful request
+        console.warn("[Auth] Network error during auth check, keeping existing state");
+        if (!user) {
+          clearAuth();
+        }
+      } else {
+        clearAuth();
+      }
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [setIsLoading, setUser, setLastAuthCheck, clearAuth, user]);
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     try {
       const response = await api.get<User>("/auth/me");
       if (response.data && response.data.id) {
         setUser(response.data);
+        setLastAuthCheck(Date.now());
       }
     } catch {
       // Ignore refresh errors
     }
-  };
+  }, [setUser, setLastAuthCheck]);
 
-  const login = async (credentials: LoginCredentials) => {
+  const login = useCallback(async (credentials: LoginCredentials) => {
     // Validate credentials before sending
     if (!credentials.email || !credentials.password) {
       const errorMessage = "Email and password are required";
@@ -81,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       setUser(response.data.user);
+      setLastAuthCheck(Date.now());
       toast.success("Welcome back!");
       // Use setTimeout to ensure state is updated before navigation
       setTimeout(() => {
@@ -118,9 +134,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toast.error(message);
       throw error;
     }
-  };
+  }, [setUser, setLastAuthCheck, clearAuth, navigate]);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await api.post("/auth/logout");
     } catch {
@@ -130,7 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       navigate("/login");
       toast.success("Logged out successfully");
     }
-  };
+  }, [clearAuth, navigate]);
 
   useEffect(() => {
     // Only check auth on mount, not on every render
@@ -151,8 +167,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Check if user can perform edit operations (create/update/delete)
-  // Only super_admin and admin can edit, visitors are read-only
-  const canEdit = user?.role === "super_admin" || user?.role === "admin";
+  // super_admin, admin, and manager can edit, visitors are read-only
+  const canEdit = user?.role === "super_admin" || user?.role === "admin" || user?.role === "manager";
 
   return (
     <AuthContext.Provider
