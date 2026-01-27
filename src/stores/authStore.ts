@@ -24,18 +24,20 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       isLoading: true,
       lastAuthCheck: null,
-      setUser: (user) => set({ 
-        user, 
-        isAuthenticated: !!user,
-        lastAuthCheck: user ? Date.now() : null
-      }),
+      setUser: (user) =>
+        set({
+          user,
+          isAuthenticated: !!user,
+          lastAuthCheck: user ? Date.now() : null,
+        }),
       setIsAuthenticated: (value) => set({ isAuthenticated: value }),
       setIsLoading: (value) => set({ isLoading: value }),
-      logout: () => set({ 
-        user: null, 
-        isAuthenticated: false, 
-        lastAuthCheck: null 
-      }),
+      logout: () =>
+        set({
+          user: null,
+          isAuthenticated: false,
+          lastAuthCheck: null,
+        }),
       setLastAuthCheck: (time) => set({ lastAuthCheck: time }),
     }),
     {
@@ -53,9 +55,9 @@ export const useAuthStore = create<AuthState>()(
           // If we have stored auth data, keep loading true until we validate
           // If auth data is older than 1 hour, force re-validation
           const ONE_HOUR = 60 * 60 * 1000;
-          const isStale = state.lastAuthCheck && 
-            (Date.now() - state.lastAuthCheck) > ONE_HOUR;
-          
+          const isStale =
+            state.lastAuthCheck && Date.now() - state.lastAuthCheck > ONE_HOUR;
+
           if (isStale) {
             state.user = null;
             state.isAuthenticated = false;
@@ -64,6 +66,6 @@ export const useAuthStore = create<AuthState>()(
           state.isLoading = true;
         }
       },
-    }
-  )
+    },
+  ),
 );

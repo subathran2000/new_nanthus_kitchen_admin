@@ -1,4 +1,10 @@
-import { createContext, useContext, useEffect, useCallback, ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useCallback,
+  ReactNode,
+} from "react";
 import { useNavigate } from "react-router";
 import { useAuthStore } from "@/stores/authStore";
 import api from "@/lib/api";
@@ -49,7 +55,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else if (!error.response) {
         // Network error - keep existing auth state if we have one
         // User will be validated on next successful request
-        console.warn("[Auth] Network error during auth check, keeping existing state");
+        console.warn(
+          "[Auth] Network error during auth check, keeping existing state",
+        );
         if (!user) {
           clearAuth();
         }
@@ -73,68 +81,72 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [setUser, setLastAuthCheck]);
 
-  const login = useCallback(async (credentials: LoginCredentials) => {
-    // Validate credentials before sending
-    if (!credentials.email || !credentials.password) {
-      const errorMessage = "Email and password are required";
-      toast.error(errorMessage);
-      throw new Error(errorMessage);
-    }
-
-    try {
-      const response = await api.post<{
-        user: User;
-        accessToken: string;
-        refreshToken: string;
-      }>("/auth/login", credentials);
-
-      // Validate the response has the expected data
-      if (!response.data || !response.data.user || !response.data.user.id) {
-        const errorMessage = "Invalid response from server";
+  const login = useCallback(
+    async (credentials: LoginCredentials) => {
+      // Validate credentials before sending
+      if (!credentials.email || !credentials.password) {
+        const errorMessage = "Email and password are required";
         toast.error(errorMessage);
         throw new Error(errorMessage);
       }
 
-      setUser(response.data.user);
-      setLastAuthCheck(Date.now());
-      toast.success("Welcome back!");
-      // Use setTimeout to ensure state is updated before navigation
-      setTimeout(() => {
-        navigate("/dashboard", { replace: true });
-      }, 100);
-    } catch (error: any) {
-      // Don't show success for errors - ensure proper error handling
-      clearAuth(); // Make sure we're not in authenticated state on error
+      try {
+        const response = await api.post<{
+          user: User;
+          accessToken: string;
+          refreshToken: string;
+        }>("/auth/login", credentials);
 
-      let message = "Login failed. Please try again.";
-
-      if (error.response) {
-        // Server responded with error
-        const status = error.response.status;
-        const serverMessage = error.response.data?.message;
-
-        if (status === 401) {
-          message = serverMessage || "Invalid email or password";
-        } else if (status === 403) {
-          message = serverMessage || "Your account has been deactivated";
-        } else if (status === 429) {
-          message = "Too many login attempts. Please try again later.";
-        } else if (status >= 500) {
-          message = "Server error. Please try again later.";
-        } else if (serverMessage) {
-          message = serverMessage;
+        // Validate the response has the expected data
+        if (!response.data || !response.data.user || !response.data.user.id) {
+          const errorMessage = "Invalid response from server";
+          toast.error(errorMessage);
+          throw new Error(errorMessage);
         }
-      } else if (error.request) {
-        // Network error - no response received
-        message = "Unable to connect to server. Please check your connection.";
-      } else if (error.message) {
-        message = error.message;
-      }
 
-      toast.error(message);
-      throw error;
-    }
-  }, [setUser, setLastAuthCheck, clearAuth, navigate]);
+        setUser(response.data.user);
+        setLastAuthCheck(Date.now());
+        toast.success("Welcome back!");
+        // Use setTimeout to ensure state is updated before navigation
+        setTimeout(() => {
+          navigate("/dashboard", { replace: true });
+        }, 100);
+      } catch (error: any) {
+        // Don't show success for errors - ensure proper error handling
+        clearAuth(); // Make sure we're not in authenticated state on error
+
+        let message = "Login failed. Please try again.";
+
+        if (error.response) {
+          // Server responded with error
+          const status = error.response.status;
+          const serverMessage = error.response.data?.message;
+
+          if (status === 401) {
+            message = serverMessage || "Invalid email or password";
+          } else if (status === 403) {
+            message = serverMessage || "Your account has been deactivated";
+          } else if (status === 429) {
+            message = "Too many login attempts. Please try again later.";
+          } else if (status >= 500) {
+            message = "Server error. Please try again later.";
+          } else if (serverMessage) {
+            message = serverMessage;
+          }
+        } else if (error.request) {
+          // Network error - no response received
+          message =
+            "Unable to connect to server. Please check your connection.";
+        } else if (error.message) {
+          message = error.message;
+        }
+
+        toast.error(message);
+        throw error;
+      }
+    },
+    [setUser, setLastAuthCheck, clearAuth, navigate],
+  );
 
   const logout = useCallback(async () => {
     try {
@@ -168,7 +180,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Check if user can perform edit operations (create/update/delete)
   // super_admin, admin, and manager can edit, visitors are read-only
-  const canEdit = user?.role === "super_admin" || user?.role === "admin" || user?.role === "manager";
+  const canEdit =
+    user?.role === "super_admin" ||
+    user?.role === "admin" ||
+    user?.role === "manager";
 
   return (
     <AuthContext.Provider

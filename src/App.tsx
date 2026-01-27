@@ -1,6 +1,11 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router";
-import { ThemeProvider, CssBaseline, CircularProgress, Box } from "@mui/material";
+import {
+  ThemeProvider,
+  CssBaseline,
+  CircularProgress,
+  Box,
+} from "@mui/material";
 import { LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { theme } from "./theme";
@@ -15,18 +20,62 @@ import { ForgotPasswordPage } from "./pages/auth/ForgotPasswordPage";
 import { ResetPasswordPage } from "./pages/auth/ResetPasswordPage";
 
 // Lazy loaded pages for better performance
-const DashboardPage = lazy(() => import("./pages/dashboard/DashboardPage").then(m => ({ default: m.DashboardPage })));
-const PrimaryCategoriesPage = lazy(() => import("./pages/menu/PrimaryCategoriesPage").then(m => ({ default: m.PrimaryCategoriesPage })));
-const MenuCategoriesPage = lazy(() => import("./pages/menu/MenuCategoriesPage").then(m => ({ default: m.MenuCategoriesPage })));
-const MenuItemsPage = lazy(() => import("./pages/menu/MenuItemsPage").then(m => ({ default: m.MenuItemsPage })));
-const MeasurementTypesPage = lazy(() => import("./pages/menu/MeasurementTypesPage").then(m => ({ default: m.MeasurementTypesPage })));
-const EventsPage = lazy(() => import("./pages/events/EventsPage").then(m => ({ default: m.EventsPage })));
-const SpecialsPage = lazy(() => import("./pages/specials/SpecialsPage").then(m => ({ default: m.SpecialsPage })));
-const OpeningHoursPage = lazy(() => import("./pages/opening-hours/OpeningHoursPage").then(m => ({ default: m.OpeningHoursPage })));
-const NewsletterSubscribersPage = lazy(() => import("./pages/newsletter/NewsletterSubscribersPage").then(m => ({ default: m.NewsletterSubscribersPage })));
-const NewsletterCampaignsPage = lazy(() => import("./pages/newsletter/NewsletterCampaignsPage").then(m => ({ default: m.NewsletterCampaignsPage })));
-const UsersPage = lazy(() => import("./pages/users/UsersPage").then(m => ({ default: m.UsersPage })));
-const SettingsPage = lazy(() => import("./pages/settings/SettingsPage").then(m => ({ default: m.SettingsPage })));
+const DashboardPage = lazy(() =>
+  import("./pages/dashboard/DashboardPage").then((m) => ({
+    default: m.DashboardPage,
+  })),
+);
+const PrimaryCategoriesPage = lazy(() =>
+  import("./pages/menu/PrimaryCategoriesPage").then((m) => ({
+    default: m.PrimaryCategoriesPage,
+  })),
+);
+const MenuCategoriesPage = lazy(() =>
+  import("./pages/menu/MenuCategoriesPage").then((m) => ({
+    default: m.MenuCategoriesPage,
+  })),
+);
+const MenuItemsPage = lazy(() =>
+  import("./pages/menu/MenuItemsPage").then((m) => ({
+    default: m.MenuItemsPage,
+  })),
+);
+const MeasurementTypesPage = lazy(() =>
+  import("./pages/menu/MeasurementTypesPage").then((m) => ({
+    default: m.MeasurementTypesPage,
+  })),
+);
+const EventsPage = lazy(() =>
+  import("./pages/events/EventsPage").then((m) => ({ default: m.EventsPage })),
+);
+const SpecialsPage = lazy(() =>
+  import("./pages/specials/SpecialsPage").then((m) => ({
+    default: m.SpecialsPage,
+  })),
+);
+const OpeningHoursPage = lazy(() =>
+  import("./pages/opening-hours/OpeningHoursPage").then((m) => ({
+    default: m.OpeningHoursPage,
+  })),
+);
+const NewsletterSubscribersPage = lazy(() =>
+  import("./pages/newsletter/NewsletterSubscribersPage").then((m) => ({
+    default: m.NewsletterSubscribersPage,
+  })),
+);
+const NewsletterCampaignsPage = lazy(() =>
+  import("./pages/newsletter/NewsletterCampaignsPage").then((m) => ({
+    default: m.NewsletterCampaignsPage,
+  })),
+);
+const UsersPage = lazy(() =>
+  import("./pages/users/UsersPage").then((m) => ({ default: m.UsersPage })),
+);
+const SettingsPage = lazy(() =>
+  import("./pages/settings/SettingsPage").then((m) => ({
+    default: m.SettingsPage,
+  })),
+);
 
 // Loading fallback component
 const PageLoader = () => (
@@ -54,7 +103,10 @@ function App() {
               <Routes>
                 {/* Public Routes */}
                 <Route path="/login" element={<LoginPage />} />
-                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route
+                  path="/forgot-password"
+                  element={<ForgotPasswordPage />}
+                />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
 
                 {/* Protected Routes */}
@@ -104,7 +156,9 @@ function App() {
                   <Route
                     path="users"
                     element={
-                      <ProtectedRoute allowedRoles={["super_admin", "admin", "manager"]}>
+                      <ProtectedRoute
+                        allowedRoles={["super_admin", "admin", "manager"]}
+                      >
                         <UsersPage />
                       </ProtectedRoute>
                     }

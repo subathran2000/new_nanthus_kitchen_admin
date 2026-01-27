@@ -41,7 +41,11 @@ export default defineConfig({
         manualChunks: {
           // Vendor chunks for better caching
           "vendor-react": ["react", "react-dom", "react-router"],
-          "vendor-mui": ["@mui/material", "@mui/icons-material", "@mui/x-date-pickers"],
+          "vendor-mui": [
+            "@mui/material",
+            "@mui/icons-material",
+            "@mui/x-date-pickers",
+          ],
           "vendor-utils": ["axios", "zustand", "date-fns"],
         },
       },
@@ -53,6 +57,12 @@ export default defineConfig({
   },
   // Optimize dependencies
   optimizeDeps: {
-    include: ["react", "react-dom", "react-router", "@mui/material", "@mui/icons-material"],
+    include: [
+      "react",
+      "react-dom",
+      "react-router",
+      "@mui/material",
+      "@mui/icons-material",
+    ],
   },
 });
