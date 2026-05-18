@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import {
   Box,
   Typography,
@@ -29,13 +29,13 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   Refresh as RefreshIcon,
-  CloudUpload as UploadIcon,
   Close as CloseIcon,
 } from "@mui/icons-material";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller, useFieldArray } from "react-hook-form";
 import toast from "react-hot-toast";
-import api, { getImageUrl } from "../../lib/api";
+
+import api, { getImageUrl, getErrorMessage } from "../../lib/api";
 import { useAuth } from "../../contexts/AuthContext";
 import type {
   MenuItem,
@@ -44,6 +44,7 @@ import type {
   DietaryInfo,
   Allergen,
 } from "../../types";
+import { PageHeader, ConfirmDialog, ImageUpload } from "@/components/shared";
 
 const MAX_FILE_SIZE = 1 * 1024 * 1024; // 1MB
 
@@ -88,7 +89,6 @@ interface MenuItemForm {
 export function MenuItemsPage() {
   const { canEdit } = useAuth();
   const queryClient = useQueryClient();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -178,11 +178,8 @@ export function MenuItemsPage() {
       toast.success("Menu item created successfully");
       handleCloseDialog();
     },
-    onError: (error: any) => {
-      const message =
-        error.response?.data?.message ||
-        "Failed to create menu item. Please check all required fields.";
-      toast.error(message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -202,11 +199,8 @@ export function MenuItemsPage() {
       toast.success("Menu item updated successfully");
       handleCloseDialog();
     },
-    onError: (error: any) => {
-      const message =
-        error.response?.data?.message ||
-        "Failed to update menu item. Please try again.";
-      toast.error(message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -221,47 +215,23 @@ export function MenuItemsPage() {
       setDeleteDialogOpen(false);
       setDeletingItem(null);
     },
-    onError: (error: any) => {
-      const message =
-        error.response?.data?.message ||
-        "Failed to delete menu item. Please try again.";
-      toast.error(message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    const validFiles: File[] = [];
-    const newPreviews: string[] = [];
-
-    for (const file of files) {
-      if (file.size > MAX_FILE_SIZE) {
-        toast.error(
-          `"${file.name}" exceeds 1MB limit. Please choose a smaller image.`,
-        );
-        continue;
-      }
-      validFiles.push(file);
-      const reader = new FileReader();
-      reader.onload = () => {
-        newPreviews.push(reader.result as string);
-        if (newPreviews.length === validFiles.length) {
-          setImagePreviews((prev) => [...prev, ...newPreviews]);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-    setSelectedImages((prev) => [...prev, ...validFiles]);
+  const handleAddImages = (files: File[], previews: string[]) => {
+    setSelectedImages((prev) => [...prev, ...files]);
+    setImagePreviews((prev) => [...prev, ...previews]);
   };
 
-  const removeImage = (index: number, isExisting: boolean) => {
-    if (isExisting) {
-      setExistingImages((prev) => prev.filter((_, i) => i !== index));
-    } else {
-      const adjustedIndex = index - existingImages.length;
-      setSelectedImages((prev) => prev.filter((_, i) => i !== adjustedIndex));
-      setImagePreviews((prev) => prev.filter((_, i) => i !== adjustedIndex));
-    }
+  const removeExistingImage = (index: number) => {
+    setExistingImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const removeNewImage = (index: number) => {
+    setSelectedImages((prev) => prev.filter((_, i) => i !== index));
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleOpenCreate = () => {
@@ -471,41 +441,30 @@ export function MenuItemsPage() {
       : []),
   ];
 
-  const allImages = [...existingImages, ...imagePreviews];
-
   return (
     <Box>
-      <Box
-        display="flex"
-        justifyContent="space-between"
-        alignItems="center"
-        mb={3}
-      >
-        <Box>
-          <Typography variant="h4" fontWeight={700} gutterBottom>
-            Menu Items
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Manage all menu items and their pricing variations
-          </Typography>
-        </Box>
-        <Box display="flex" gap={1}>
-          <Tooltip title="Refresh">
-            <IconButton onClick={() => refetch()}>
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
-          {canEdit && (
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleOpenCreate}
-            >
-              Add Item
-            </Button>
-          )}
-        </Box>
-      </Box>
+      <PageHeader
+        title="Menu Items"
+        description="Manage all menu items and their pricing variations"
+        actions={
+          <Box display="flex" gap={1}>
+            <Tooltip title="Refresh">
+              <IconButton onClick={() => refetch()}>
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
+            {canEdit && (
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={handleOpenCreate}
+              >
+                Add Item
+              </Button>
+            )}
+          </Box>
+        }
+      />
 
       <Paper sx={{ height: 600, width: "100%" }}>
         <DataGrid
@@ -795,81 +754,16 @@ export function MenuItemsPage() {
               </Grid>
               <Grid size={{ xs: 12, md: 4 }}>
                 <Box display="flex" flexDirection="column" gap={2}>
-                  {/* Image Upload */}
-                  <Box
-                    sx={{
-                      width: "100%",
-                      minHeight: 150,
-                      border: "2px dashed",
-                      borderColor: "divider",
-                      borderRadius: 2,
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      cursor: "pointer",
-                      p: 2,
-                      "&:hover": { borderColor: "primary.main" },
-                    }}
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <UploadIcon
-                      sx={{ fontSize: 32, color: "text.secondary" }}
-                    />
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      textAlign="center"
-                    >
-                      Click to upload images
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Max 1MB per image
-                    </Typography>
-                  </Box>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
+                  <ImageUpload
+                    existingImages={existingImages}
+                    newPreviews={imagePreviews}
+                    onAddFiles={handleAddImages}
+                    onRemoveExisting={removeExistingImage}
+                    onRemoveNew={removeNewImage}
+                    getImageUrl={getImageUrl}
                     multiple
-                    hidden
-                    onChange={handleImageChange}
+                    maxSizeBytes={MAX_FILE_SIZE}
                   />
-
-                  {/* Image Previews */}
-                  {allImages.length > 0 && (
-                    <Box display="flex" flexWrap="wrap" gap={1}>
-                      {allImages.map((img, index) => {
-                        const isExisting = index < existingImages.length;
-                        const imageUrl = isExisting ? getImageUrl(img) : img;
-                        return (
-                          <Box key={index} position="relative">
-                            <Avatar
-                              src={imageUrl}
-                              variant="rounded"
-                              sx={{ width: 60, height: 60 }}
-                            />
-                            <IconButton
-                              size="small"
-                              sx={{
-                                position: "absolute",
-                                top: -8,
-                                right: -8,
-                                bgcolor: "error.main",
-                                color: "white",
-                                "&:hover": { bgcolor: "error.dark" },
-                                width: 20,
-                                height: 20,
-                              }}
-                              onClick={() => removeImage(index, isExisting)}
-                            >
-                              <CloseIcon sx={{ fontSize: 12 }} />
-                            </IconButton>
-                          </Box>
-                        );
-                      })}
-                    </Box>
-                  )}
 
                   <Controller
                     name="isAvailable"
@@ -907,32 +801,14 @@ export function MenuItemsPage() {
         </form>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog
+      <ConfirmDialog
         open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-      >
-        <DialogTitle>Delete Menu Item</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to delete "{deletingItem?.name}"? This action
-            cannot be undone.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-          <Button
-            color="error"
-            variant="contained"
-            onClick={() =>
-              deletingItem && deleteMutation.mutate(deletingItem.id)
-            }
-            disabled={deleteMutation.isPending}
-          >
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
+        title="Delete Menu Item"
+        description={`Are you sure you want to delete "${deletingItem?.name}"? This action cannot be undone.`}
+        onConfirm={() => deletingItem && deleteMutation.mutate(deletingItem.id)}
+        onCancel={() => setDeleteDialogOpen(false)}
+        loading={deleteMutation.isPending}
+      />
     </Box>
   );
 }

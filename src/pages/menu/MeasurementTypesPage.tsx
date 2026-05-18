@@ -23,9 +23,11 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import toast from "react-hot-toast";
-import api from "../../lib/api";
+
+import api, { getErrorMessage } from "../../lib/api";
 import { useAuth } from "../../contexts/AuthContext";
 import type { MeasurementType } from "../../types";
+import { PageHeader, ConfirmDialog } from "@/components/shared";
 
 interface MeasurementTypeForm {
   name: string;
@@ -75,11 +77,8 @@ export function MeasurementTypesPage() {
       toast.success("Measurement type created successfully");
       handleCloseDialog();
     },
-    onError: (error: any) => {
-      const message =
-        error.response?.data?.message ||
-        "Failed to create measurement type. Please check if the name already exists.";
-      toast.error(message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -99,11 +98,8 @@ export function MeasurementTypesPage() {
       toast.success("Measurement type updated successfully");
       handleCloseDialog();
     },
-    onError: (error: any) => {
-      const message =
-        error.response?.data?.message ||
-        "Failed to update measurement type. Please try again.";
-      toast.error(message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -118,11 +114,8 @@ export function MeasurementTypesPage() {
       setDeleteDialogOpen(false);
       setDeletingItem(null);
     },
-    onError: (error: any) => {
-      const message =
-        error.response?.data?.message ||
-        "Cannot delete this measurement type. It may be in use by menu items.";
-      toast.error(message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -206,37 +199,28 @@ export function MeasurementTypesPage() {
 
   return (
     <Box>
-      <Box
-        display="flex"
-        justifyContent="space-between"
-        alignItems="center"
-        mb={3}
-      >
-        <Box>
-          <Typography variant="h4" fontWeight={700} gutterBottom>
-            Measurement Types
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Manage portion sizes (e.g., Small, Medium, Large, Half, Full)
-          </Typography>
-        </Box>
-        <Box display="flex" gap={1}>
-          <Tooltip title="Refresh">
-            <IconButton onClick={() => refetch()}>
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
-          {canEdit && (
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleOpenCreate}
-            >
-              Add Type
-            </Button>
-          )}
-        </Box>
-      </Box>
+      <PageHeader
+        title="Measurement Types"
+        description="Manage portion sizes (e.g., Small, Medium, Large, Half, Full)"
+        actions={
+          <Box display="flex" gap={1}>
+            <Tooltip title="Refresh">
+              <IconButton onClick={() => refetch()}>
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
+            {canEdit && (
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={handleOpenCreate}
+              >
+                Add Type
+              </Button>
+            )}
+          </Box>
+        }
+      />
 
       <Paper sx={{ height: 600, width: "100%" }}>
         <DataGrid
@@ -297,33 +281,14 @@ export function MeasurementTypesPage() {
         </form>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog
+      <ConfirmDialog
         open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-      >
-        <DialogTitle>Delete Measurement Type</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to delete "{deletingItem?.name}"? This action
-            cannot be undone. You cannot delete measurement types that are in
-            use.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-          <Button
-            color="error"
-            variant="contained"
-            onClick={() =>
-              deletingItem && deleteMutation.mutate(deletingItem.id)
-            }
-            disabled={deleteMutation.isPending}
-          >
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
+        title="Delete Measurement Type"
+        description={`Are you sure you want to delete "${deletingItem?.name}"? This action cannot be undone. You cannot delete measurement types that are in use.`}
+        onConfirm={() => deletingItem && deleteMutation.mutate(deletingItem.id)}
+        onCancel={() => setDeleteDialogOpen(false)}
+        loading={deleteMutation.isPending}
+      />
     </Box>
   );
 }

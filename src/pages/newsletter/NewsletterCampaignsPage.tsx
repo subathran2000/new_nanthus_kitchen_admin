@@ -47,10 +47,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import toast from "react-hot-toast";
 import { format } from "date-fns";
-import api from "../../lib/api";
-import { sanitizeHtml } from "../../lib/sanitize";
+
+import api, { getErrorMessage } from "../../lib/api";
+import { sanitizeHtml, escapeHtml } from "../../lib/sanitize";
 import { useAuth } from "../../contexts/AuthContext";
 import type { NewsletterCampaign, NewsletterStatus } from "../../types";
+import { PageHeader, StatCard, ConfirmDialog } from "@/components/shared";
+import { statColors } from "@/theme/tokens";
 
 interface CampaignForm {
   subject: string;
@@ -281,7 +284,11 @@ export function NewsletterCampaignsPage() {
   // Stats
   const draftCount = campaigns.filter((c) => c.status === "draft").length;
   const sentCount = campaigns.filter((c) => c.status === "sent").length;
-  const totalSent = campaigns.reduce((sum, c) => sum + (c.sentCount || 0), 0);
+  const failedCount = campaigns.filter((c) => c.status === "failed").length;
+  const sendingCount = campaigns.filter((c) => c.status === "sending").length;
+  const scheduledCount = campaigns.filter((c) => c.status === "scheduled").length;
+  const totalSent = campaigns.reduce((sum, c) => sum + (c.successfulSends || 0), 0);
+  const totalSubscribers = campaigns.reduce((sum, c) => Math.max(sum, c.totalRecipients || 0), 0);
 
   // Create mutation
   const createMutation = useMutation({
@@ -298,8 +305,8 @@ export function NewsletterCampaignsPage() {
       toast.success("Campaign created successfully");
       handleCloseDialog();
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Failed to create campaign");
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -317,8 +324,8 @@ export function NewsletterCampaignsPage() {
       toast.success("Campaign updated successfully");
       handleCloseDialog();
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Failed to update campaign");
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -333,8 +340,8 @@ export function NewsletterCampaignsPage() {
       setDeleteDialogOpen(false);
       setDeletingItem(null);
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Failed to delete campaign");
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -345,12 +352,22 @@ export function NewsletterCampaignsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["newsletterCampaigns"] });
-      toast.success("Campaign is being sent to all subscribers!");
+      const isResend = sendingItem?.status === "failed";
+      toast.success(
+        isResend
+          ? "Campaign is being resent to all subscribers!"
+          : "Campaign is being sent to all subscribers!"
+      );
       setSendDialogOpen(false);
       setSendingItem(null);
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Failed to send campaign");
+    onError: (error: unknown) => {
+      const isResend = sendingItem?.status === "failed";
+      const err = error as { response?: { data?: { message?: string } } };
+      toast.error(
+        err.response?.data?.message ||
+        `Failed to ${isResend ? "resend" : "send"} campaign`
+      );
     },
   });
 
@@ -369,21 +386,24 @@ export function NewsletterCampaignsPage() {
         continue;
       }
 
+      // Escape HTML entities to prevent XSS
+      const safe = escapeHtml(trimmed);
+
       // Detect headers (all caps or lines ending with :)
       if (
         trimmed === trimmed.toUpperCase() &&
         trimmed.length > 3 &&
         !trimmed.includes("$")
       ) {
-        html += `<h2 style="color: ${brandColor}; margin: 20px 0 10px 0; font-size: 18px;">${trimmed}</h2>`;
+        html += `<h2 style="color: ${brandColor}; margin: 20px 0 10px 0; font-size: 18px;">${safe}</h2>`;
       } else if (trimmed.endsWith(":") && trimmed.length < 50) {
-        html += `<p style="color: ${brandColor}; font-weight: bold; margin: 15px 0 5px 0;">${trimmed}</p>`;
+        html += `<p style="color: ${brandColor}; font-weight: bold; margin: 15px 0 5px 0;">${safe}</p>`;
       } else if (trimmed.startsWith("-") || trimmed.startsWith("•")) {
-        html += `<p style="margin: 5px 0 5px 20px;">${trimmed}</p>`;
+        html += `<p style="margin: 5px 0 5px 20px;">${safe}</p>`;
       } else if (/^\d+\./.test(trimmed)) {
-        html += `<p style="margin: 5px 0 5px 20px;">${trimmed}</p>`;
+        html += `<p style="margin: 5px 0 5px 20px;">${safe}</p>`;
       } else {
-        html += `<p style="margin: 10px 0; line-height: 1.6;">${trimmed}</p>`;
+        html += `<p style="margin: 10px 0; line-height: 1.6;">${safe}</p>`;
       }
     }
 
@@ -409,8 +429,8 @@ export function NewsletterCampaignsPage() {
   };
 
   const handleOpenEdit = (item: NewsletterCampaign) => {
-    if (item.status !== "draft") {
-      toast.error("Only draft campaigns can be edited");
+    if (item.status !== "draft" && item.status !== "failed") {
+      toast.error("Only draft and failed campaigns can be edited");
       return;
     }
     setEditingItem(item);
@@ -468,8 +488,8 @@ export function NewsletterCampaignsPage() {
   };
 
   const handleOpenSend = (item: NewsletterCampaign) => {
-    if (item.status !== "draft") {
-      toast.error("Only draft campaigns can be sent");
+    if (item.status !== "draft" && item.status !== "failed") {
+      toast.error("Only draft or failed campaigns can be sent");
       return;
     }
     setSendingItem(item);
@@ -521,28 +541,62 @@ export function NewsletterCampaignsPage() {
       width: 130,
       renderCell: (params) => {
         const config = statusConfig[params.value as NewsletterStatus];
+        const campaign = params.row;
+
         return (
-          <Chip
-            icon={config.icon as React.ReactElement}
-            label={config.label}
-            color={config.color}
-            size="small"
-            variant="outlined"
-          />
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, py: 0.5 }}>
+            <Chip
+              icon={config.icon as React.ReactElement}
+              label={config.label}
+              color={config.color}
+              size="small"
+              variant="outlined"
+            />
+            {campaign.status === "failed" && (
+              <Typography variant="caption" color="error">
+                {campaign.successfulSends || 0} sent, {campaign.failedSends || 0} failed
+              </Typography>
+            )}
+            {campaign.status === "sent" && campaign.successfulSends !== undefined && (
+              <Typography variant="caption" color="success.main">
+                {campaign.successfulSends} sent successfully
+              </Typography>
+            )}
+          </Box>
         );
       },
     },
     {
       field: "sentCount",
-      headerName: "Sent To",
-      width: 100,
+      headerName: "Recipients",
+      width: 120,
       align: "center",
       headerAlign: "center",
-      renderCell: (params) => (
-        <Typography variant="body2">
-          {params.row.status === "sent" ? params.value || 0 : "-"}
-        </Typography>
-      ),
+      renderCell: (params) => {
+        const campaign = params.row;
+        if (campaign.status === "sent") {
+          return (
+            <Typography variant="body2" color="success.main">
+              {campaign.successfulSends || 0}
+            </Typography>
+          );
+        }
+        if (campaign.status === "failed") {
+          return (
+            <Typography variant="body2" color="error.main">
+              {campaign.totalRecipients || 0}
+            </Typography>
+          );
+        }
+        if (campaign.status === "sending") {
+          return (
+            <Typography variant="body2" color="warning.main">
+              {campaign.totalRecipients || 0}
+            </Typography>
+          );
+        }
+        return <Typography variant="body2" color="text.secondary">-</Typography>;
+      },
     },
     {
       field: "sentAt",
@@ -572,7 +626,18 @@ export function NewsletterCampaignsPage() {
           />,
         ];
 
-        if (canEdit && params.row.status === "draft") {
+        if (canEdit && params.row.status === "failed") {
+          actions.unshift(
+            <GridActionsCellItem
+              key="resend"
+              icon={<RefreshIcon />}
+              label="Resend"
+              onClick={() => handleOpenSend(params.row)}
+            />,
+          );
+        }
+
+        if (canEdit && (params.row.status === "draft" || params.row.status === "failed")) {
           actions.unshift(
             <GridActionsCellItem
               key="edit"
@@ -580,6 +645,11 @@ export function NewsletterCampaignsPage() {
               label="Edit"
               onClick={() => handleOpenEdit(params.row)}
             />,
+          );
+        }
+
+        if (canEdit && params.row.status === "draft") {
+          actions.unshift(
             <GridActionsCellItem
               key="send"
               icon={<SendIcon />}
@@ -608,101 +678,70 @@ export function NewsletterCampaignsPage() {
   return (
     <Box>
       {/* Header */}
-      <Box
-        display="flex"
-        justifyContent="space-between"
-        alignItems="center"
-        mb={3}
-      >
-        <Box>
-          <Typography variant="h4" fontWeight={700} gutterBottom>
-            Email Campaigns
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Create and send newsletters to your subscribers
-          </Typography>
-        </Box>
-        <Box display="flex" gap={1}>
-          <Tooltip title="Refresh">
-            <IconButton onClick={() => refetch()}>
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
-          {canEdit && (
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleOpenCreate}
-            >
-              New Campaign
-            </Button>
-          )}
-        </Box>
-      </Box>
+      <PageHeader
+        title="Email Campaigns"
+        description="Create and send newsletters to your subscribers"
+        actions={
+          <Box display="flex" gap={1}>
+            <Tooltip title="Refresh">
+              <IconButton onClick={() => refetch()}>
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
+            {canEdit && (
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={handleOpenCreate}
+              >
+                New Campaign
+              </Button>
+            )}
+          </Box>
+        }
+      />
 
       {/* Stats Cards */}
       <Grid container spacing={2} mb={3}>
-        <Grid size={{ xs: 12, sm: 4 }}>
-          <Card>
-            <CardContent sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-              <Box
-                sx={{ p: 1.5, borderRadius: 2, bgcolor: alpha("#F7921E", 0.1) }}
-              >
-                <DraftsIcon sx={{ color: "#F7921E" }} />
-              </Box>
-              <Box>
-                <Typography variant="h4" fontWeight={700}>
-                  {draftCount}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Drafts
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <StatCard
+            title="Drafts"
+            value={draftCount}
+            icon={<DraftsIcon />}
+            color={statColors.orange}
+          />
         </Grid>
-        <Grid size={{ xs: 12, sm: 4 }}>
-          <Card>
-            <CardContent sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-              <Box
-                sx={{ p: 1.5, borderRadius: 2, bgcolor: alpha("#4caf50", 0.1) }}
-              >
-                <SentIcon sx={{ color: "#4caf50" }} />
-              </Box>
-              <Box>
-                <Typography variant="h4" fontWeight={700}>
-                  {sentCount}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Campaigns Sent
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <StatCard
+            title="Successful Campaigns"
+            value={sentCount}
+            icon={<SentIcon />}
+            color={statColors.green}
+            subtitle={`${totalSent.toLocaleString()} emails sent`}
+          />
         </Grid>
-        <Grid size={{ xs: 12, sm: 4 }}>
-          <Card>
-            <CardContent sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-              <Box
-                sx={{ p: 1.5, borderRadius: 2, bgcolor: alpha("#2196f3", 0.1) }}
-              >
-                <SendIcon sx={{ color: "#2196f3" }} />
-              </Box>
-              <Box>
-                <Typography variant="h4" fontWeight={700}>
-                  {totalSent}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Emails Delivered
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <StatCard
+            title="Failed Campaigns"
+            value={failedCount}
+            icon={<DeleteIcon />}
+            color={statColors.red}
+            subtitle={failedCount > 0 ? "Need attention" : "All good"}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <StatCard
+            title="In Progress"
+            value={sendingCount + scheduledCount}
+            icon={<SendIcon />}
+            color={statColors.blue}
+            subtitle={`${sendingCount} sending, ${scheduledCount} scheduled`}
+          />
         </Grid>
       </Grid>
 
       {/* Data Grid */}
-      <Paper sx={{ height: 500, width: "100%" }}>
+      <Paper sx={{ width: "100%" }}>
         <DataGrid
           rows={campaigns}
           columns={columns}
@@ -713,7 +752,11 @@ export function NewsletterCampaignsPage() {
             sorting: { sortModel: [{ field: "createdAt", sort: "desc" }] },
           }}
           disableRowSelectionOnClick
-          sx={{ "& .MuiDataGrid-row": { cursor: "pointer" } }}
+          getRowHeight={() => "auto"}
+          sx={{
+            "& .MuiDataGrid-row": { cursor: "pointer" },
+            "& .MuiDataGrid-cell": { py: 1.5, alignItems: "center" },
+          }}
           onRowDoubleClick={(params) => handleOpenView(params.row)}
         />
       </Paper>
@@ -852,41 +895,74 @@ Nanthu's Kitchen Team`}
         onClose={() => setViewDialogOpen(false)}
         maxWidth="md"
         fullWidth
+        PaperProps={{ sx: { borderRadius: 2, overflow: "hidden" } }}
       >
-        <DialogTitle>
-          <Box>
-            <Typography variant="h6">{viewingItem?.subject}</Typography>
-            <Typography variant="caption" color="text.secondary">
+        {/* Coloured header band */}
+        <Box
+          sx={{
+            bgcolor: "primary.main",
+            px: 3,
+            py: 2,
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: 2,
+          }}
+        >
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography
+              variant="h6"
+              sx={{ color: "#fff", fontWeight: 600, lineHeight: 1.3 }}
+            >
+              {viewingItem?.subject}
+            </Typography>
+            <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.75)", mt: 0.5, display: "block" }}>
               {viewingItem?.status === "sent" && viewingItem?.sentAt
-                ? `Sent on ${format(new Date(viewingItem.sentAt), "MMMM d, yyyy 'at' h:mm a")} to ${viewingItem.sentCount} subscribers`
+                ? `Sent on ${format(new Date(viewingItem.sentAt), "MMMM d, yyyy 'at' h:mm a")} · ${viewingItem.sentCount ?? viewingItem.successfulSends ?? 0} subscribers`
                 : `Status: ${statusConfig[viewingItem?.status as NewsletterStatus]?.label || "Unknown"}`}
             </Typography>
           </Box>
-        </DialogTitle>
-        <DialogContent>
-          <Paper
-            variant="outlined"
-            sx={{
-              p: 0,
-              mt: 2,
-              maxHeight: 500,
-              overflow: "auto",
-              bgcolor: "#f5f5f5",
-            }}
-          >
-            <Box
-              sx={{ bgcolor: "white", p: 2 }}
-              dangerouslySetInnerHTML={{
-                __html: sanitizeHtml(viewingItem?.content) || "<p>No content</p>",
-              }}
+          {viewingItem?.status && (
+            <Chip
+              icon={statusConfig[viewingItem.status as NewsletterStatus]?.icon as React.ReactElement}
+              label={statusConfig[viewingItem.status as NewsletterStatus]?.label}
+              color={statusConfig[viewingItem.status as NewsletterStatus]?.color}
+              size="small"
+              sx={{ flexShrink: 0, bgcolor: "rgba(255,255,255,0.15)", color: "#fff", borderColor: "rgba(255,255,255,0.4)", "& .MuiChip-icon": { color: "#fff" } }}
+              variant="outlined"
             />
-          </Paper>
+          )}
+        </Box>
+
+        <DialogContent sx={{ p: 0, bgcolor: "grey.100" }}>
+          {/* Email preview frame */}
+          <Box sx={{ p: 2 }}>
+            <Paper
+              elevation={2}
+              sx={{
+                borderRadius: 1,
+                overflow: "auto",
+                maxHeight: 480,
+                bgcolor: "#ffffff",
+                color: "#000000",
+              }}
+            >
+              <Box
+                sx={{ p: 3 }}
+                dangerouslySetInnerHTML={{
+                  __html: sanitizeHtml(viewingItem?.content) || "<p style='color:#666;font-family:sans-serif'>No content</p>",
+                }}
+              />
+            </Paper>
+          </Box>
         </DialogContent>
-        <DialogActions>
+
+        <DialogActions sx={{ px: 3, py: 2, borderTop: 1, borderColor: "divider" }}>
           <Button onClick={() => setViewDialogOpen(false)}>Close</Button>
           {canEdit && viewingItem?.status === "draft" && (
             <>
               <Button
+                variant="outlined"
                 onClick={() => {
                   setViewDialogOpen(false);
                   handleOpenEdit(viewingItem);
@@ -896,6 +972,7 @@ Nanthu's Kitchen Team`}
               </Button>
               <Button
                 variant="contained"
+                startIcon={<SendIcon />}
                 onClick={() => {
                   setViewDialogOpen(false);
                   handleOpenSend(viewingItem);
@@ -915,19 +992,41 @@ Nanthu's Kitchen Team`}
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>Send Campaign</DialogTitle>
+        <DialogTitle>
+          {sendingItem?.status === "failed" ? "Resend Campaign" : "Send Campaign"}
+        </DialogTitle>
         <DialogContent>
           <Alert severity="warning" sx={{ mb: 2 }}>
             This action cannot be undone!
           </Alert>
-          <Typography>
-            Are you sure you want to send{" "}
-            <strong>"{sendingItem?.subject}"</strong> to all newsletter
-            subscribers?
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            The email will be sent to all active subscribers immediately.
-          </Typography>
+
+          {sendingItem?.status === "failed" ? (
+            <>
+              <Typography>
+                Are you sure you want to resend{" "}
+                <strong>"{sendingItem?.subject}"</strong> to all newsletter
+                subscribers?
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                This campaign previously failed to send ({sendingItem.failedSends || 0} failed).
+                Resending will attempt to send to all subscribers again.
+              </Typography>
+              <Alert severity="info" sx={{ mt: 2 }}>
+                Previous results: {sendingItem.successfulSends || 0} sent successfully, {sendingItem.failedSends || 0} failed
+              </Alert>
+            </>
+          ) : (
+            <>
+              <Typography>
+                Are you sure you want to send{" "}
+                <strong>"{sendingItem?.subject}"</strong> to all newsletter
+                subscribers?
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                The email will be sent to all active subscribers immediately.
+              </Typography>
+            </>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setSendDialogOpen(false)}>Cancel</Button>
@@ -938,40 +1037,22 @@ Nanthu's Kitchen Team`}
             onClick={() => sendingItem && sendMutation.mutate(sendingItem.id)}
             disabled={sendMutation.isPending}
           >
-            {sendMutation.isPending ? "Sending..." : "Send Now"}
+            {sendMutation.isPending
+              ? (sendingItem?.status === "failed" ? "Resending..." : "Sending...")
+              : (sendingItem?.status === "failed" ? "Resend Now" : "Send Now")
+            }
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog
+      <ConfirmDialog
         open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-      >
-        <DialogTitle>Delete Campaign</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to delete{" "}
-            <strong>"{deletingItem?.subject}"</strong>?
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            This action cannot be undone.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-          <Button
-            color="error"
-            variant="contained"
-            onClick={() =>
-              deletingItem && deleteMutation.mutate(deletingItem.id)
-            }
-            disabled={deleteMutation.isPending}
-          >
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
+        title="Delete Campaign"
+        description={`Are you sure you want to delete "${deletingItem?.subject}"? This action cannot be undone.`}
+        onConfirm={() => deletingItem && deleteMutation.mutate(deletingItem.id)}
+        onCancel={() => setDeleteDialogOpen(false)}
+        loading={deleteMutation.isPending}
+      />
     </Box>
   );
 }

@@ -22,11 +22,13 @@ import {
   VisibilityOff as VisibilityOffIcon,
   Save as SaveIcon,
 } from "@mui/icons-material";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import toast from "react-hot-toast";
-import api from "../../lib/api";
+
+import api, { getErrorMessage } from "../../lib/api";
 import { useAuth } from "../../contexts/AuthContext";
+import { PageHeader } from "@/components/shared";
 
 interface ProfileForm {
   firstName: string;
@@ -42,7 +44,6 @@ interface PasswordForm {
 
 export function SettingsPage() {
   const { user, refreshUser } = useAuth();
-  const queryClient = useQueryClient();
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -69,12 +70,11 @@ export function SettingsPage() {
       return api.patch("/auth/profile", data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["profile"] });
       refreshUser();
       toast.success("Profile updated successfully");
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Failed to update profile");
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -90,8 +90,8 @@ export function SettingsPage() {
       toast.success("Password changed successfully");
       passwordForm.reset();
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Failed to change password");
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -114,12 +114,10 @@ export function SettingsPage() {
 
   return (
     <Box>
-      <Typography variant="h4" fontWeight={700} gutterBottom>
-        Settings
-      </Typography>
-      <Typography variant="body2" color="text.secondary" mb={3}>
-        Manage your account settings and preferences
-      </Typography>
+      <PageHeader
+        title="Settings"
+        description="Update your account details and preferences"
+      />
 
       <Grid container spacing={3}>
         {/* Profile Settings */}
@@ -273,6 +271,10 @@ export function SettingsPage() {
                         value: 8,
                         message: "Password must be at least 8 characters",
                       },
+                      pattern: {
+                        value: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*])/,
+                        message: "Must include uppercase, lowercase, number, and special character",
+                      },
                     }}
                     render={({ field }) => (
                       <TextField
@@ -383,7 +385,9 @@ export function SettingsPage() {
                         ? "Super Administrator"
                         : user?.role === "admin"
                           ? "Administrator"
-                          : "Visitor"}
+                          : user?.role === "manager"
+                            ? "Manager"
+                            : "Visitor"}
                     </Typography>
                   </Paper>
                 </Grid>

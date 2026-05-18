@@ -29,28 +29,30 @@ createRoot(document.getElementById("root")!).render(
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <App />
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 4000,
-          style: {
-            background: "#333",
-            color: "#fff",
-          },
-          success: {
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
             style: {
-              background: "#10b981",
+              background: "var(--toast-bg, #333)",
+              color: "var(--toast-color, #fff)",
             },
-          },
-          error: {
-            style: {
-              background: "#ef4444",
+            success: {
+              style: {
+                background: "#10b981",
+                color: "#fff",
+              },
             },
-          },
-        }}
-      />
+            error: {
+              style: {
+                background: "#ef4444",
+                color: "#fff",
+              },
+            },
+          }}
+        />
         <ReactQueryDevtools initialIsOpen={false} />
       </QueryClientProvider>
     </ErrorBoundary>
-  </StrictMode>
+  </StrictMode>,
 );

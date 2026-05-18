@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import {
   Box,
   Typography,
@@ -30,17 +30,14 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   Refresh as RefreshIcon,
-  CloudUpload as UploadIcon,
-  Close as CloseIcon,
 } from "@mui/icons-material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
-import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
-import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import toast from "react-hot-toast";
 import { format } from "date-fns";
-import api, { getImageUrl } from "../../lib/api";
+
+import api, { getImageUrl, getErrorMessage } from "../../lib/api";
 import { useAuth } from "../../contexts/AuthContext";
 import type {
   Special,
@@ -48,6 +45,7 @@ import type {
   DayOfWeek,
   SpecialCategory,
 } from "../../types";
+import { PageHeader, ConfirmDialog, ImageUpload } from "@/components/shared";
 
 const MAX_FILE_SIZE = 1 * 1024 * 1024; // 1MB
 
@@ -129,7 +127,6 @@ const specialCategories: {
 export function SpecialsPage() {
   const { canEdit } = useAuth();
   const queryClient = useQueryClient();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Special | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -203,11 +200,8 @@ export function SpecialsPage() {
       toast.success("Special created successfully");
       handleCloseDialog();
     },
-    onError: (error: any) => {
-      const message =
-        error.response?.data?.message ||
-        "Failed to create special. Please check all required fields.";
-      toast.error(message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -227,11 +221,8 @@ export function SpecialsPage() {
       toast.success("Special updated successfully");
       handleCloseDialog();
     },
-    onError: (error: any) => {
-      const message =
-        error.response?.data?.message ||
-        "Failed to update special. Please try again.";
-      toast.error(message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -246,47 +237,23 @@ export function SpecialsPage() {
       setDeleteDialogOpen(false);
       setDeletingItem(null);
     },
-    onError: (error: any) => {
-      const message =
-        error.response?.data?.message ||
-        "Failed to delete special. Please try again.";
-      toast.error(message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    const validFiles: File[] = [];
-    const newPreviews: string[] = [];
-
-    for (const file of files) {
-      if (file.size > MAX_FILE_SIZE) {
-        toast.error(
-          `"${file.name}" exceeds 1MB limit. Please choose a smaller image.`,
-        );
-        continue;
-      }
-      validFiles.push(file);
-      const reader = new FileReader();
-      reader.onload = () => {
-        newPreviews.push(reader.result as string);
-        if (newPreviews.length === validFiles.length) {
-          setImagePreviews((prev) => [...prev, ...newPreviews]);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-    setSelectedImages((prev) => [...prev, ...validFiles]);
+  const handleAddImages = (files: File[], previews: string[]) => {
+    setSelectedImages((prev) => [...prev, ...files]);
+    setImagePreviews((prev) => [...prev, ...previews]);
   };
 
-  const removeImage = (index: number, isExisting: boolean) => {
-    if (isExisting) {
-      setExistingImages((prev) => prev.filter((_, i) => i !== index));
-    } else {
-      const adjustedIndex = index - existingImages.length;
-      setSelectedImages((prev) => prev.filter((_, i) => i !== adjustedIndex));
-      setImagePreviews((prev) => prev.filter((_, i) => i !== adjustedIndex));
-    }
+  const removeExistingImage = (index: number) => {
+    setExistingImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const removeNewImage = (index: number) => {
+    setSelectedImages((prev) => prev.filter((_, i) => i !== index));
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleOpenCreate = () => {
@@ -471,25 +438,12 @@ export function SpecialsPage() {
       : []),
   ];
 
-  const allImages = [...existingImages, ...imagePreviews];
-
   return (
-    <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <Box>
-        <Box
-          display="flex"
-          justifyContent="space-between"
-          alignItems="center"
-          mb={3}
-        >
-          <Box>
-            <Typography variant="h4" fontWeight={700} gutterBottom>
-              Specials
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Manage daily specials, game time deals, and chef specials
-            </Typography>
-          </Box>
+    <Box>
+      <PageHeader
+        title="Specials"
+        description="Manage daily specials, game day deals, and chef's specials"
+        actions={
           <Box display="flex" gap={1}>
             <Tooltip title="Refresh">
               <IconButton onClick={() => refetch()}>
@@ -506,369 +460,282 @@ export function SpecialsPage() {
               </Button>
             )}
           </Box>
-        </Box>
+        }
+      />
 
-        <Paper sx={{ mb: 2 }}>
-          <Tabs
-            value={tabValue}
-            onChange={(_, v) => setTabValue(v)}
-            sx={{ borderBottom: 1, borderColor: "divider" }}
-          >
-            <Tab label="All" value="all" />
-            <Tab label="Daily Specials" value="daily" />
-            <Tab label="Game Time" value="game_time" />
-            <Tab label="Chef's Specials" value="chef" />
-            <Tab label="Seasonal" value="seasonal" />
-          </Tabs>
-        </Paper>
-
-        <Paper sx={{ height: 550, width: "100%" }}>
-          <DataGrid
-            rows={specials}
-            columns={columns}
-            loading={isLoading}
-            pageSizeOptions={[10, 25, 50]}
-            initialState={{
-              pagination: { paginationModel: { pageSize: 10 } },
-              sorting: { sortModel: [{ field: "sortOrder", sort: "asc" }] },
-            }}
-            disableRowSelectionOnClick
-          />
-        </Paper>
-
-        {/* Create/Edit Dialog */}
-        <Dialog
-          open={dialogOpen}
-          onClose={handleCloseDialog}
-          maxWidth="md"
-          fullWidth
+      <Paper sx={{ mb: 2 }}>
+        <Tabs
+          value={tabValue}
+          onChange={(_, v) => setTabValue(v)}
+          sx={{ borderBottom: 1, borderColor: "divider" }}
         >
-          <form onSubmit={handleSubmit(onSubmit)}>
-            <DialogTitle>
-              {editingItem ? "Edit Special" : "Add Special"}
-            </DialogTitle>
-            <DialogContent>
-              <Grid container spacing={2} mt={0.5}>
-                <Grid size={{ xs: 12, md: 8 }}>
-                  <Box display="flex" flexDirection="column" gap={2}>
-                    <Controller
-                      name="title"
-                      control={control}
-                      rules={{ required: "Title is required" }}
-                      render={({ field }) => (
-                        <TextField
-                          {...field}
-                          label="Title"
-                          fullWidth
-                          error={!!errors.title}
-                          helperText={errors.title?.message}
-                        />
-                      )}
-                    />
-                    <Controller
-                      name="description"
-                      control={control}
-                      render={({ field }) => (
-                        <TextField
-                          {...field}
-                          label="Description"
-                          fullWidth
-                          multiline
-                          rows={3}
-                        />
-                      )}
-                    />
-                    <Grid container spacing={2}>
-                      <Grid size={{ xs: 6 }}>
-                        <Controller
-                          name="type"
-                          control={control}
-                          render={({ field }) => (
-                            <FormControl fullWidth>
-                              <InputLabel>Type</InputLabel>
-                              <Select {...field} label="Type">
-                                {specialTypes.map((t) => (
-                                  <MenuItem key={t.value} value={t.value}>
-                                    {t.label}
-                                  </MenuItem>
-                                ))}
-                              </Select>
-                            </FormControl>
-                          )}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 6 }}>
-                        <Controller
-                          name="specialCategory"
-                          control={control}
-                          render={({ field }) => (
-                            <FormControl fullWidth>
-                              <InputLabel>Category</InputLabel>
-                              <Select
-                                {...field}
-                                label="Category"
-                                value={field.value || ""}
-                              >
-                                <MenuItem value="">None</MenuItem>
-                                {specialCategories.map((c) => (
-                                  <MenuItem key={c.value} value={c.value}>
-                                    {c.label}
-                                  </MenuItem>
-                                ))}
-                              </Select>
-                            </FormControl>
-                          )}
-                        />
-                      </Grid>
-                    </Grid>
+          <Tab label="All" value="all" />
+          <Tab label="Daily Specials" value="daily" />
+          <Tab label="Game Time" value="game_time" />
+          <Tab label="Chef's Specials" value="chef" />
+          <Tab label="Seasonal" value="seasonal" />
+        </Tabs>
+      </Paper>
 
-                    {watchedType === "daily" && (
+      <Paper sx={{ height: 550, width: "100%" }}>
+        <DataGrid
+          rows={specials}
+          columns={columns}
+          loading={isLoading}
+          pageSizeOptions={[10, 25, 50]}
+          initialState={{
+            pagination: { paginationModel: { pageSize: 10 } },
+            sorting: { sortModel: [{ field: "sortOrder", sort: "asc" }] },
+          }}
+          disableRowSelectionOnClick
+        />
+      </Paper>
+
+      {/* Create/Edit Dialog */}
+      <Dialog
+        open={dialogOpen}
+        onClose={handleCloseDialog}
+        maxWidth="md"
+        fullWidth
+      >
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <DialogTitle>
+            {editingItem ? "Edit Special" : "Add Special"}
+          </DialogTitle>
+          <DialogContent>
+            <Grid container spacing={2} mt={0.5}>
+              <Grid size={{ xs: 12, md: 8 }}>
+                <Box display="flex" flexDirection="column" gap={2}>
+                  <Controller
+                    name="title"
+                    control={control}
+                    rules={{ required: "Title is required" }}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label="Title"
+                        fullWidth
+                        error={!!errors.title}
+                        helperText={errors.title?.message}
+                      />
+                    )}
+                  />
+                  <Controller
+                    name="description"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label="Description"
+                        fullWidth
+                        multiline
+                        rows={3}
+                      />
+                    )}
+                  />
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 6 }}>
                       <Controller
-                        name="dayOfWeek"
+                        name="type"
                         control={control}
-                        rules={{
-                          required:
-                            watchedType === "daily"
-                              ? "Day is required for daily specials"
-                              : false,
-                        }}
                         render={({ field }) => (
-                          <FormControl fullWidth error={!!errors.dayOfWeek}>
-                            <InputLabel>Day of Week</InputLabel>
-                            <Select
-                              {...field}
-                              label="Day of Week"
-                              value={field.value || ""}
-                            >
-                              {daysOfWeek.map((d) => (
-                                <MenuItem key={d.value} value={d.value}>
-                                  {d.label}
+                          <FormControl fullWidth>
+                            <InputLabel>Type</InputLabel>
+                            <Select {...field} label="Type">
+                              {specialTypes.map((t) => (
+                                <MenuItem key={t.value} value={t.value}>
+                                  {t.label}
                                 </MenuItem>
                               ))}
                             </Select>
                           </FormControl>
                         )}
                       />
-                    )}
-
-                    {/* Info alert about scheduling behavior */}
-                    {watchedType === "daily" && (
-                      <Alert severity="info" sx={{ mt: 1 }}>
-                        Daily specials are shown all day on their designated day
-                        of week.
-                      </Alert>
-                    )}
-                    {watchedCategory === "late_night" && (
-                      <Alert severity="info" sx={{ mt: 1 }}>
-                        Late night specials are displayed all day on the
-                        website.
-                      </Alert>
-                    )}
-
-                    {/* Display Period - Date only, for promotional campaigns */}
-                    <Typography
-                      variant="subtitle2"
-                      color="text.secondary"
-                      sx={{ mt: 1 }}
-                    >
-                      Display Period (optional - for limited time promotions)
-                    </Typography>
-                    <Grid container spacing={2}>
-                      <Grid size={{ xs: 6 }}>
-                        <Controller
-                          name="displayStartDate"
-                          control={control}
-                          render={({ field }) => (
-                            <DatePicker
-                              label="Display From"
-                              value={field.value}
-                              onChange={field.onChange}
-                              slotProps={{
-                                textField: { fullWidth: true },
-                              }}
-                            />
-                          )}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 6 }}>
-                        <Controller
-                          name="displayEndDate"
-                          control={control}
-                          render={({ field }) => (
-                            <DatePicker
-                              label="Display Until"
-                              value={field.value}
-                              onChange={field.onChange}
-                              slotProps={{
-                                textField: { fullWidth: true },
-                              }}
-                            />
-                          )}
-                        />
-                      </Grid>
                     </Grid>
-
-                    <Controller
-                      name="sortOrder"
-                      control={control}
-                      render={({ field }) => (
-                        <TextField
-                          {...field}
-                          label="Sort Order"
-                          type="number"
-                          fullWidth
-                          onChange={(e) =>
-                            field.onChange(parseInt(e.target.value) || 0)
-                          }
-                        />
-                      )}
-                    />
-                  </Box>
-                </Grid>
-                <Grid size={{ xs: 12, md: 4 }}>
-                  <Box display="flex" flexDirection="column" gap={2}>
-                    {/* Multi-image upload */}
-                    <Box
-                      sx={{
-                        width: "100%",
-                        minHeight: 120,
-                        border: "2px dashed",
-                        borderColor: "divider",
-                        borderRadius: 2,
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        cursor: "pointer",
-                        p: 2,
-                        "&:hover": { borderColor: "primary.main" },
-                      }}
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <UploadIcon
-                        sx={{ fontSize: 32, color: "text.secondary" }}
+                    <Grid size={{ xs: 6 }}>
+                      <Controller
+                        name="specialCategory"
+                        control={control}
+                        render={({ field }) => (
+                          <FormControl fullWidth>
+                            <InputLabel>Category</InputLabel>
+                            <Select
+                              {...field}
+                              label="Category"
+                              value={field.value || ""}
+                            >
+                              <MenuItem value="">None</MenuItem>
+                              {specialCategories.map((c) => (
+                                <MenuItem key={c.value} value={c.value}>
+                                  {c.label}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+                        )}
                       />
-                      <Typography
-                        variant="body2"
-                        color="text.secondary"
-                        textAlign="center"
-                      >
-                        Click to upload images
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        Max 1MB per image
-                      </Typography>
-                    </Box>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      hidden
-                      onChange={handleImageChange}
-                    />
+                    </Grid>
+                  </Grid>
 
-                    {/* Image Previews */}
-                    {allImages.length > 0 && (
-                      <Box display="flex" flexWrap="wrap" gap={1}>
-                        {allImages.map((img, index) => {
-                          const isExisting = index < existingImages.length;
-                          const imageUrl = isExisting ? getImageUrl(img) : img;
-                          return (
-                            <Box key={index} position="relative">
-                              <Avatar
-                                src={imageUrl}
-                                variant="rounded"
-                                sx={{ width: 60, height: 60 }}
-                              />
-                              <IconButton
-                                size="small"
-                                sx={{
-                                  position: "absolute",
-                                  top: -8,
-                                  right: -8,
-                                  bgcolor: "error.main",
-                                  color: "white",
-                                  "&:hover": { bgcolor: "error.dark" },
-                                  width: 20,
-                                  height: 20,
-                                }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  removeImage(index, isExisting);
-                                }}
-                              >
-                                <CloseIcon sx={{ fontSize: 12 }} />
-                              </IconButton>
-                            </Box>
-                          );
-                        })}
-                      </Box>
-                    )}
-
+                  {watchedType === "daily" && (
                     <Controller
-                      name="isActive"
+                      name="dayOfWeek"
                       control={control}
+                      rules={{
+                        required:
+                          watchedType === "daily"
+                            ? "Day is required for daily specials"
+                            : false,
+                      }}
                       render={({ field }) => (
-                        <FormControlLabel
-                          control={
-                            <Switch
-                              checked={field.value}
-                              onChange={(e) => field.onChange(e.target.checked)}
-                            />
-                          }
-                          label="Active"
-                        />
+                        <FormControl fullWidth error={!!errors.dayOfWeek}>
+                          <InputLabel>Day of Week</InputLabel>
+                          <Select
+                            {...field}
+                            label="Day of Week"
+                            value={field.value || ""}
+                          >
+                            {daysOfWeek.map((d) => (
+                              <MenuItem key={d.value} value={d.value}>
+                                {d.label}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
                       )}
                     />
-                  </Box>
-                </Grid>
-              </Grid>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={handleCloseDialog}>Cancel</Button>
-              <Button
-                type="submit"
-                variant="contained"
-                disabled={
-                  createMutation.isPending ||
-                  updateMutation.isPending ||
-                  uploadMutation.isPending
-                }
-              >
-                {editingItem ? "Update" : "Create"}
-              </Button>
-            </DialogActions>
-          </form>
-        </Dialog>
+                  )}
 
-        {/* Delete Confirmation Dialog */}
-        <Dialog
-          open={deleteDialogOpen}
-          onClose={() => setDeleteDialogOpen(false)}
-        >
-          <DialogTitle>Delete Special</DialogTitle>
-          <DialogContent>
-            <Typography>
-              Are you sure you want to delete "{deletingItem?.title}"? This
-              action cannot be undone.
-            </Typography>
+                  {/* Info alert about scheduling behavior */}
+                  {watchedType === "daily" && (
+                    <Alert severity="info" sx={{ mt: 1 }}>
+                      Daily specials are shown all day on their designated day
+                      of week.
+                    </Alert>
+                  )}
+                  {watchedCategory === "late_night" && (
+                    <Alert severity="info" sx={{ mt: 1 }}>
+                      Late night specials are displayed all day on the website.
+                    </Alert>
+                  )}
+
+                  {/* Display Period - Date only, for promotional campaigns */}
+                  <Typography
+                    variant="subtitle2"
+                    color="text.secondary"
+                    sx={{ mt: 1 }}
+                  >
+                    Display Period (optional - for limited time promotions)
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 6 }}>
+                      <Controller
+                        name="displayStartDate"
+                        control={control}
+                        render={({ field }) => (
+                          <DatePicker
+                            label="Display From"
+                            value={field.value}
+                            onChange={field.onChange}
+                            slotProps={{
+                              textField: { fullWidth: true },
+                            }}
+                          />
+                        )}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 6 }}>
+                      <Controller
+                        name="displayEndDate"
+                        control={control}
+                        render={({ field }) => (
+                          <DatePicker
+                            label="Display Until"
+                            value={field.value}
+                            onChange={field.onChange}
+                            slotProps={{
+                              textField: { fullWidth: true },
+                            }}
+                          />
+                        )}
+                      />
+                    </Grid>
+                  </Grid>
+
+                  <Controller
+                    name="sortOrder"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label="Sort Order"
+                        type="number"
+                        fullWidth
+                        onChange={(e) =>
+                          field.onChange(parseInt(e.target.value) || 0)
+                        }
+                      />
+                    )}
+                  />
+                </Box>
+              </Grid>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <Box display="flex" flexDirection="column" gap={2}>
+                  <ImageUpload
+                    existingImages={existingImages}
+                    newPreviews={imagePreviews}
+                    onAddFiles={handleAddImages}
+                    onRemoveExisting={removeExistingImage}
+                    onRemoveNew={removeNewImage}
+                    getImageUrl={getImageUrl}
+                    multiple
+                    maxSizeBytes={MAX_FILE_SIZE}
+                  />
+
+                  <Controller
+                    name="isActive"
+                    control={control}
+                    render={({ field }) => (
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={field.value}
+                            onChange={(e) => field.onChange(e.target.checked)}
+                          />
+                        }
+                        label="Active"
+                      />
+                    )}
+                  />
+                </Box>
+              </Grid>
+            </Grid>
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleCloseDialog}>Cancel</Button>
             <Button
-              color="error"
+              type="submit"
               variant="contained"
-              onClick={() =>
-                deletingItem && deleteMutation.mutate(deletingItem.id)
+              disabled={
+                createMutation.isPending ||
+                updateMutation.isPending ||
+                uploadMutation.isPending
               }
-              disabled={deleteMutation.isPending}
             >
-              Delete
+              {editingItem ? "Update" : "Create"}
             </Button>
           </DialogActions>
-        </Dialog>
-      </Box>
-    </LocalizationProvider>
+        </form>
+      </Dialog>
+
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        title="Delete Special"
+        description={`Are you sure you want to delete "${deletingItem?.title}"? This action cannot be undone.`}
+        onConfirm={() => deletingItem && deleteMutation.mutate(deletingItem.id)}
+        onCancel={() => setDeleteDialogOpen(false)}
+        loading={deleteMutation.isPending}
+      />
+    </Box>
   );
 }

@@ -11,24 +11,28 @@ import {
   Card,
   CardContent,
   CardHeader,
-  TextField,
   IconButton,
   Tooltip,
   Alert,
   Tabs,
   Tab,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from "@mui/material";
 import { Save as SaveIcon, Refresh as RefreshIcon } from "@mui/icons-material";
 import { TimePicker } from "@mui/x-date-pickers/TimePicker";
-import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
-import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { parse, format } from "date-fns";
-import api from "../../lib/api";
+
+import api, { getErrorMessage } from "../../lib/api";
 import { formatCurrentDateTimeInToronto } from "../../lib/timezone";
 import { useAuth } from "../../contexts/AuthContext";
 import type { OpeningHours, DayOfWeek, Location } from "../../types";
+import { PageHeader } from "@/components/shared";
 
 interface DayHours {
   dayOfWeek: DayOfWeek;
@@ -73,6 +77,8 @@ export function OpeningHoursPage() {
   const [hours, setHours] = useState<DayHours[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
   const [currentTime, setCurrentTime] = useState("");
+  const [pendingTab, setPendingTab] = useState<Location | null>(null);
+  const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
 
   // Update Toronto time clock every second
   useEffect(() => {
@@ -140,9 +146,10 @@ export function OpeningHoursPage() {
       toast.success("Opening hours saved successfully");
       setHasChanges(false);
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { message?: string } } };
       toast.error(
-        error.response?.data?.message || "Failed to save opening hours",
+        err.response?.data?.message || "Failed to save opening hours",
       );
     },
   });
@@ -156,9 +163,10 @@ export function OpeningHoursPage() {
       queryClient.invalidateQueries({ queryKey: ["openingHours"] });
       toast.success("Opening hours initialized with default values");
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { message?: string } } };
       toast.error(
-        error.response?.data?.message || "Failed to initialize opening hours",
+        err.response?.data?.message || "Failed to initialize opening hours",
       );
     },
   });
@@ -205,10 +213,8 @@ export function OpeningHoursPage() {
         await refetch(); // Explicitly refetch to ensure fresh data
         toast.success("Opening hours created successfully");
         setHasChanges(false);
-      } catch (error: any) {
-        toast.error(
-          error.response?.data?.message || "Failed to create opening hours",
-        );
+      } catch (error: unknown) {
+        toast.error(getErrorMessage(error));
       }
     } else {
       // Update existing records
@@ -250,36 +256,37 @@ export function OpeningHoursPage() {
     }
   };
 
-  const handleLocationChange = (_: any, newValue: Location) => {
+  const handleLocationChange = (
+    _: React.SyntheticEvent,
+    newValue: Location,
+  ) => {
     if (hasChanges) {
-      if (
-        !window.confirm(
-          "You have unsaved changes. Are you sure you want to switch locations?",
-        )
-      ) {
-        return;
-      }
+      setPendingTab(newValue);
+      setUnsavedDialogOpen(true);
+    } else {
+      setTabValue(newValue);
     }
-    setTabValue(newValue);
+  };
+
+  const handleConfirmTabSwitch = () => {
+    if (pendingTab) {
+      setTabValue(pendingTab);
+      setPendingTab(null);
+    }
+    setUnsavedDialogOpen(false);
+  };
+
+  const handleCancelTabSwitch = () => {
+    setPendingTab(null);
+    setUnsavedDialogOpen(false);
   };
 
   return (
-    <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <Box>
-        <Box
-          display="flex"
-          justifyContent="space-between"
-          alignItems="center"
-          mb={3}
-        >
-          <Box>
-            <Typography variant="h4" fontWeight={700} gutterBottom>
-              Opening Hours
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Manage opening hours for both locations
-            </Typography>
-          </Box>
+    <Box>
+      <PageHeader
+        title="Opening Hours"
+        description="Manage opening hours for both locations"
+        actions={
           <Box display="flex" gap={1}>
             <Tooltip title="Refresh">
               <IconButton onClick={() => refetch()} disabled={isLoading}>
@@ -297,215 +304,242 @@ export function OpeningHoursPage() {
               </Button>
             )}
           </Box>
-        </Box>
+        }
+      />
 
-        {/* Location Tabs */}
-        <Paper sx={{ mb: 3 }}>
-          <Tabs value={tabValue} onChange={handleLocationChange}>
-            <Tab label="Markham" value="markham" />
-            <Tab label="Scarborough" value="scarborough" />
-          </Tabs>
-        </Paper>
+      {/* Location Tabs */}
+      <Paper sx={{ mb: 3 }}>
+        <Tabs value={tabValue} onChange={handleLocationChange}>
+          <Tab label="Markham" value="markham" />
+          <Tab label="Scarborough" value="scarborough" />
+        </Tabs>
+      </Paper>
 
-        {/* No records info */}
-        {locationHours.length === 0 && (
-          <Alert severity="info" sx={{ mb: 3 }}>
-            <Typography variant="body2">
-              No opening hours configured yet for{" "}
-              {tabValue === "markham" ? "Markham" : "Scarborough"}.
-              {canEdit &&
-                " Set the hours below and click 'Save Changes' to create them."}
-            </Typography>
-          </Alert>
-        )}
-
-        {/* Status Alert */}
-        {statusData && (
-          <Alert
-            severity={statusData.isOpen ? "success" : "info"}
-            sx={{ mb: 3 }}
-            icon={statusData.isOpen ? undefined : false}
-          >
-            <Box
-              sx={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                flexWrap: "wrap",
-                gap: 2,
-              }}
-            >
-              <Box>
-                <Typography variant="body2">
-                  <strong>
-                    {tabValue === "markham" ? "Markham" : "Scarborough"}
-                  </strong>{" "}
-                  is currently{" "}
-                  <strong
-                    style={{
-                      color: statusData.isOpen ? "#2e7d32" : "#ed6c02",
-                    }}
-                  >
-                    {statusData.isOpen ? "OPEN" : "CLOSED"}
-                  </strong>
-                </Typography>
-                {statusData.message && (
-                  <Typography variant="caption" color="text.secondary">
-                    {statusData.message}
-                  </Typography>
-                )}
-              </Box>
-              <Box
-                display="flex"
-                flexDirection="column"
-                alignItems="flex-end"
-                gap={0.5}
-              >
-                <Chip
-                  label={currentTime}
-                  size="small"
-                  sx={{
-                    bgcolor: "primary.main",
-                    color: "white",
-                    fontWeight: 600,
-                    fontFamily: "monospace",
-                  }}
-                />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: "0.65rem" }}
-                >
-                  America/Toronto
-                </Typography>
-              </Box>
-            </Box>
-          </Alert>
-        )}
-
-        {hasChanges && (
-          <Alert severity="warning" sx={{ mb: 3 }}>
-            You have unsaved changes. Click "Save Changes" to apply them.
-          </Alert>
-        )}
-
-        {/* Hours Grid */}
-        <Grid container spacing={2}>
-          {hours.map((dayHours, index) => {
-            const dayInfo = daysOfWeek.find(
-              (d) => d.value === dayHours.dayOfWeek,
-            );
-            return (
-              <Grid size={{ xs: 12, md: 6 }} key={dayHours.dayOfWeek}>
-                <Card variant="outlined">
-                  <CardHeader
-                    title={dayInfo?.label}
-                    titleTypographyProps={{ variant: "h6" }}
-                    action={
-                      <Chip
-                        label={dayHours.isClosed ? "Closed" : "Open"}
-                        color={dayHours.isClosed ? "default" : "success"}
-                        size="small"
-                      />
-                    }
-                  />
-                  <CardContent>
-                    <Box display="flex" flexDirection="column" gap={2}>
-                      <FormControlLabel
-                        control={
-                          <Switch
-                            checked={dayHours.isClosed}
-                            onChange={(e) =>
-                              handleHourChange(
-                                index,
-                                "isClosed",
-                                e.target.checked,
-                              )
-                            }
-                            disabled={!canEdit}
-                          />
-                        }
-                        label="Closed"
-                      />
-
-                      {!dayHours.isClosed && (
-                        <>
-                          <Grid container spacing={2}>
-                            <Grid size={{ xs: 6 }}>
-                              <TimePicker
-                                label="Open Time"
-                                value={dayHours.openTime}
-                                onChange={(value) =>
-                                  handleHourChange(index, "openTime", value)
-                                }
-                                disabled={!canEdit}
-                                slotProps={{
-                                  textField: { fullWidth: true, size: "small" },
-                                }}
-                              />
-                            </Grid>
-                            <Grid size={{ xs: 6 }}>
-                              <TimePicker
-                                label="Close Time"
-                                value={dayHours.closeTime}
-                                onChange={(value) =>
-                                  handleHourChange(index, "closeTime", value)
-                                }
-                                disabled={!canEdit}
-                                slotProps={{
-                                  textField: {
-                                    fullWidth: true,
-                                    size: "small",
-                                    helperText:
-                                      "Can be next day for overnight hours",
-                                  },
-                                }}
-                              />
-                            </Grid>
-                          </Grid>
-                        </>
-                      )}
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            );
-          })}
-        </Grid>
-
-        {/* Location Info */}
-        <Paper sx={{ mt: 3, p: 2 }}>
-          <Typography variant="h6" gutterBottom>
-            Location Details
+      {/* No records info */}
+      {locationHours.length === 0 && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          <Typography variant="body2">
+            No opening hours configured yet for{" "}
+            {tabValue === "markham" ? "Markham" : "Scarborough"}.
+            {canEdit &&
+              " Set the hours below and click 'Save Changes' to create them."}
           </Typography>
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, md: 6 }}>
+        </Alert>
+      )}
+
+      {/* Status Alert */}
+      {statusData && (
+        <Alert
+          severity={statusData.isOpen ? "success" : "info"}
+          sx={{ mb: 3 }}
+          icon={statusData.isOpen ? undefined : false}
+        >
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 2,
+            }}
+          >
+            <Box>
+              <Typography variant="body2">
+                <strong>
+                  {tabValue === "markham" ? "Markham" : "Scarborough"}
+                </strong>{" "}
+                is currently{" "}
+                <Box
+                  component="strong"
+                  sx={{
+                    color: statusData.isOpen ? "success.dark" : "warning.main",
+                  }}
+                >
+                  {statusData.isOpen ? "OPEN" : "CLOSED"}
+                </Box>
+              </Typography>
+              {statusData.message && (
+                <Typography variant="caption" color="text.secondary">
+                  {statusData.message}
+                </Typography>
+              )}
+            </Box>
+            <Box
+              display="flex"
+              flexDirection="column"
+              alignItems="flex-end"
+              gap={0.5}
+            >
+              <Chip
+                label={currentTime}
+                size="small"
+                sx={{
+                  bgcolor: "primary.main",
+                  color: "white",
+                  fontWeight: 600,
+                  fontFamily: "monospace",
+                }}
+              />
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ fontSize: "0.65rem" }}
+              >
+                America/Toronto
+              </Typography>
+            </Box>
+          </Box>
+        </Alert>
+      )}
+
+      {hasChanges && (
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          You have unsaved changes. Click "Save Changes" to apply them.
+        </Alert>
+      )}
+
+      {/* Hours Grid */}
+      <Grid container spacing={2}>
+        {hours.map((dayHours, index) => {
+          const dayInfo = daysOfWeek.find(
+            (d) => d.value === dayHours.dayOfWeek,
+          );
+          return (
+            <Grid size={{ xs: 12, md: 6 }} key={dayHours.dayOfWeek}>
               <Card variant="outlined">
+                <CardHeader
+                  title={dayInfo?.label}
+                  titleTypographyProps={{ variant: "h6" }}
+                  action={
+                    <Chip
+                      label={dayHours.isClosed ? "Closed" : "Open"}
+                      color={dayHours.isClosed ? "default" : "success"}
+                      size="small"
+                    />
+                  }
+                />
                 <CardContent>
-                  <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-                    Markham
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    72-30 Karachi Dr, Markham, ON L3S 0B6
-                  </Typography>
+                  <Box display="flex" flexDirection="column" gap={2}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={dayHours.isClosed}
+                          onChange={(e) =>
+                            handleHourChange(
+                              index,
+                              "isClosed",
+                              e.target.checked,
+                            )
+                          }
+                          disabled={!canEdit}
+                        />
+                      }
+                      label="Closed"
+                    />
+
+                    {!dayHours.isClosed && (
+                      <>
+                        <Grid container spacing={2}>
+                          <Grid size={{ xs: 6 }}>
+                            <TimePicker
+                              label="Open Time"
+                              value={dayHours.openTime}
+                              onChange={(value) =>
+                                handleHourChange(index, "openTime", value)
+                              }
+                              disabled={!canEdit}
+                              slotProps={{
+                                textField: { fullWidth: true, size: "small" },
+                              }}
+                            />
+                          </Grid>
+                          <Grid size={{ xs: 6 }}>
+                            <TimePicker
+                              label="Close Time"
+                              value={dayHours.closeTime}
+                              onChange={(value) =>
+                                handleHourChange(index, "closeTime", value)
+                              }
+                              disabled={!canEdit}
+                              slotProps={{
+                                textField: {
+                                  fullWidth: true,
+                                  size: "small",
+                                  helperText:
+                                    "Can be next day for overnight hours",
+                                },
+                              }}
+                            />
+                          </Grid>
+                        </Grid>
+                      </>
+                    )}
+                  </Box>
                 </CardContent>
               </Card>
             </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Card variant="outlined">
-                <CardContent>
-                  <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-                    Scarborough
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    80 Nashdene Rd, Scarborough, ON M1V 5E4
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
+          );
+        })}
+      </Grid>
+
+      {/* Location Info */}
+      <Paper sx={{ mt: 3, p: 2 }}>
+        <Typography variant="h6" gutterBottom>
+          Location Details
+        </Typography>
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                  Markham
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  72-30 Karachi Dr, Markham, ON L3S 0B6
+                </Typography>
+              </CardContent>
+            </Card>
           </Grid>
-        </Paper>
-      </Box>
-    </LocalizationProvider>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                  Scarborough
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  80 Nashdene Rd, Scarborough, ON M1V 5E4
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      </Paper>
+
+      {/* Unsaved Changes Dialog */}
+      <Dialog
+        open={unsavedDialogOpen}
+        onClose={handleCancelTabSwitch}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Unsaved Changes</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            You have unsaved changes to the opening hours. Switching locations
+            will discard them. Are you sure you want to continue?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelTabSwitch}>Stay Here</Button>
+          <Button
+            onClick={handleConfirmTabSwitch}
+            color="warning"
+            variant="contained"
+          >
+            Discard Changes
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 }

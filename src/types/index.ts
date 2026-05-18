@@ -4,9 +4,12 @@ export interface User {
   email: string;
   firstName: string;
   lastName: string;
+  phone?: string | null;
+  profileImage?: string | null;
   role: UserRole;
   isActive: boolean;
-  lastLoginAt?: string;
+  isEmailVerified: boolean;
+  lastLoginAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -210,11 +213,17 @@ export interface OpeningHours {
 export interface NewsletterSubscriber {
   id: string;
   email: string;
-  firstName?: string;
-  lastName?: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  isActive: boolean;
   isVerified: boolean;
-  verificationToken?: string;
-  unsubscribeToken?: string;
+  preferredLocation?: "markham" | "scarborough" | "both";
+  interests?: string[];
+  source?: string | null;
+  verificationToken?: string | null;
+  unsubscribeToken?: string | null;
+  verifiedAt?: string | null;
+  unsubscribedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -235,6 +244,9 @@ export interface NewsletterCampaign {
   sentAt?: string;
   sentCount: number;
   failedCount: number;
+  totalRecipients: number;
+  successfulSends: number;
+  failedSends: number;
   createdAt: string;
   updatedAt: string;
 }

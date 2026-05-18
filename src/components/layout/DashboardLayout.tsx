@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router";
 import {
   Box,
@@ -44,6 +44,8 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCurrentDateTimeInToronto } from "@/lib/timezone";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { useThemeModeContext } from "@/App";
+import { ThemeToggle } from "@/components/shared/ThemeToggle";
 
 const DRAWER_WIDTH = 280;
 
@@ -121,6 +123,26 @@ const navItems: NavItem[] = [
   },
 ];
 
+const Clock = memo(function Clock() {
+  const [currentTime, setCurrentTime] = useState("");
+  useEffect(() => {
+    const updateTime = () => setCurrentTime(formatCurrentDateTimeInToronto());
+    updateTime();
+    const timer = setInterval(updateTime, 1000);
+    return () => clearInterval(timer);
+  }, []);
+  return (
+    <Typography
+      variant="body2"
+      fontWeight={600}
+      sx={{ color: "primary.main", minWidth: 75 }}
+      title="America/Toronto timezone"
+    >
+      {currentTime}
+    </Typography>
+  );
+});
+
 export function DashboardLayout() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
@@ -130,33 +152,21 @@ export function DashboardLayout() {
     "Newsletter",
   ]);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [currentTime, setCurrentTime] = useState("");
   const { user, logout } = useAuth();
+  const { mode, toggleMode } = useThemeModeContext();
   const navigate = useNavigate();
   const location = useLocation();
 
   // Initialize WebSocket connection for real-time updates
   useWebSocket();
 
-  // Update Toronto time clock every second
-  useEffect(() => {
-    const updateTime = () => setCurrentTime(formatCurrentDateTimeInToronto());
-    updateTime(); // Initial update
-    const timer = setInterval(updateTime, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
   // Filter navigation items based on user role
   const filteredNavItems = navItems.filter((item) => {
-    // Visitors can see everything except Users
+    // Visitors can see everything except Users management
     if (user?.role === "visitor") {
       return item.title !== "Users";
     }
-    if (user?.role === "admin") {
-      // Admins cannot see Users section (only super_admin can)
-      return item.title !== "Users";
-    }
-    // Super admins see everything
+    // super_admin, admin, and manager can manage users (backend enforces scope)
     return true;
   });
 
@@ -197,6 +207,11 @@ export function DashboardLayout() {
     return (
       location.pathname === path || location.pathname.startsWith(path + "/")
     );
+  };
+
+  const isParentActive = (item: NavItem) => {
+    if (item.path) return isActive(item.path);
+    return item.children?.some((child) => isActive(child.path)) ?? false;
   };
 
   const drawer = (
@@ -268,7 +283,7 @@ export function DashboardLayout() {
             <ListItem disablePadding>
               <ListItemButton
                 onClick={() => handleNavClick(item)}
-                selected={isActive(item.path)}
+                selected={isParentActive(item)}
                 sx={{
                   borderRadius: 2,
                   mb: 0.5,
@@ -359,7 +374,7 @@ export function DashboardLayout() {
               {user?.firstName} {user?.lastName}
             </Typography>
             <Typography variant="caption" color="text.secondary" noWrap>
-              {user?.role?.replace("_", " ").toUpperCase()}
+              {user?.role?.split("_").join(" ").toUpperCase()}
             </Typography>
           </Box>
         </Box>
@@ -382,6 +397,7 @@ export function DashboardLayout() {
         <Toolbar>
           <IconButton
             color="inherit"
+            aria-label="Toggle navigation menu"
             edge="start"
             onClick={handleDrawerToggle}
             sx={{ mr: 2, display: { md: "none" } }}
@@ -402,16 +418,10 @@ export function DashboardLayout() {
             }}
           >
             <AccessTimeIcon sx={{ color: "primary.main", fontSize: 20 }} />
-            <Typography
-              variant="body2"
-              fontWeight={600}
-              sx={{ color: "primary.main", minWidth: 75 }}
-              title="America/Toronto timezone"
-            >
-              {currentTime}
-            </Typography>
+            <Clock />
           </Box>
-          <IconButton onClick={handleMenuClick}>
+          <ThemeToggle mode={mode} onToggle={toggleMode} />
+          <IconButton onClick={handleMenuClick} aria-label="User menu">
             <Avatar sx={{ bgcolor: "primary.main", width: 36, height: 36 }}>
               {user?.firstName?.[0]}
               {user?.lastName?.[0]}

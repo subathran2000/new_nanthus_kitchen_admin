@@ -17,74 +17,15 @@ import {
   Event as EventIcon,
   LocalOffer as SpecialsIcon,
   Email as EmailIcon,
-  TrendingUp,
   Category as CategoryIcon,
   Fastfood as FoodIcon,
 } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router";
 import api from "@/lib/api";
-
-interface StatCardProps {
-  title: string;
-  value: string | number;
-  icon: React.ReactNode;
-  color: string;
-  trend?: string;
-}
-
-function StatCard({ title, value, icon, color, trend }: StatCardProps) {
-  return (
-    <Card>
-      <CardContent>
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-          }}
-        >
-          <Box>
-            <Typography variant="body2" color="text.secondary" gutterBottom>
-              {title}
-            </Typography>
-            <Typography variant="h4" fontWeight={700}>
-              {value}
-            </Typography>
-            {trend && (
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  mt: 1,
-                  color: "success.main",
-                }}
-              >
-                <TrendingUp fontSize="small" />
-                <Typography variant="caption" sx={{ ml: 0.5 }}>
-                  {trend}
-                </Typography>
-              </Box>
-            )}
-          </Box>
-          <Box
-            sx={{
-              width: 56,
-              height: 56,
-              borderRadius: 2,
-              bgcolor: `${color}15`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: color,
-            }}
-          >
-            {icon}
-          </Box>
-        </Box>
-      </CardContent>
-    </Card>
-  );
-}
+import { StatCard } from "@/components/shared";
+import { PageHeader } from "@/components/shared";
+import { statColors } from "@/theme/tokens";
 
 export function DashboardPage() {
   const { data: menuStats, isLoading: menuLoading } = useQuery({
@@ -136,44 +77,28 @@ export function DashboardPage() {
   return (
     <Box>
       {/* Page Header */}
-      <Box sx={{ mb: 6 }}>
-        <Typography
-          variant="h3"
-          fontWeight={700}
-          gutterBottom
-          sx={{
-            background: "linear-gradient(45deg, #F7921E 30%, #FFB74D 90%)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-          }}
-        >
-          Dashboard
-        </Typography>
-        <Typography
-          variant="body1"
-          color="text.secondary"
-          sx={{ maxWidth: 600 }}
-        >
-          Welcome back! Here's what's happening at New Nanthu's Kitchen today.
-        </Typography>
-      </Box>
+      <PageHeader
+        title="Dashboard"
+        description="Welcome back! Here's an overview of what's happening at New Nanthus Kitchen today."
+        sx={{ mb: 4 }}
+      />
 
       {/* Stats Cards */}
-      <Grid container spacing={3} sx={{ mb: 6 }}>
+      <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
           {menuLoading ? (
             <Skeleton
               variant="rectangular"
               height={160}
-              sx={{ borderRadius: 4 }}
+              sx={{ borderRadius: 3 }}
             />
           ) : (
             <StatCard
               title="Total Menu Items"
               value={menuStats?.total || 0}
               icon={<RestaurantIcon fontSize="large" />}
-              color="#F7921E"
-              trend={`${menuStats?.active || 0} active currently`}
+              color={statColors.orange}
+              subtitle={`${menuStats?.active || 0} active currently`}
             />
           )}
         </Grid>
@@ -182,15 +107,15 @@ export function DashboardPage() {
             <Skeleton
               variant="rectangular"
               height={160}
-              sx={{ borderRadius: 4 }}
+              sx={{ borderRadius: 3 }}
             />
           ) : (
             <StatCard
               title="Active Events"
               value={eventStats?.active || 0}
               icon={<EventIcon fontSize="large" />}
-              color="#3B82F6"
-              trend={`${eventStats?.upcoming || 0} upcoming`}
+              color={statColors.blue}
+              subtitle={`${eventStats?.upcoming || 0} upcoming`}
             />
           )}
         </Grid>
@@ -199,15 +124,15 @@ export function DashboardPage() {
             <Skeleton
               variant="rectangular"
               height={160}
-              sx={{ borderRadius: 4 }}
+              sx={{ borderRadius: 3 }}
             />
           ) : (
             <StatCard
               title="Current Specials"
               value={specialStats?.total || 0}
               icon={<SpecialsIcon fontSize="large" />}
-              color="#10B981"
-              trend={`${specialStats?.active || 0} active now`}
+              color={statColors.green}
+              subtitle={`${specialStats?.active || 0} active now`}
             />
           )}
         </Grid>
@@ -216,15 +141,15 @@ export function DashboardPage() {
             <Skeleton
               variant="rectangular"
               height={160}
-              sx={{ borderRadius: 4 }}
+              sx={{ borderRadius: 3 }}
             />
           ) : (
             <StatCard
               title="Total Subscribers"
               value={subscriberStats?.active || 0}
               icon={<EmailIcon fontSize="large" />}
-              color="#F59E0B"
-              trend={`${subscriberStats?.verified || 0} verified users`}
+              color={statColors.amber}
+              subtitle={`${subscriberStats?.verified || 0} verified users`}
             />
           )}
         </Grid>
@@ -268,14 +193,14 @@ export function DashboardPage() {
                       width: 40,
                       height: 40,
                       borderRadius: 1.5,
-                      bgcolor: alpha("#F7921E", 0.1),
+                      bgcolor: alpha(statColors.orange, 0.1),
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       mr: 2,
                     }}
                   >
-                    <FoodIcon sx={{ color: "#F7921E" }} />
+                    <FoodIcon sx={{ color: statColors.orange }} />
                   </Box>
                   <ListItemText
                     primary="Menu Items"
@@ -296,8 +221,10 @@ export function DashboardPage() {
                         sx={{
                           height: 8,
                           borderRadius: 4,
-                          bgcolor: alpha("#F7921E", 0.1),
-                          "& .MuiLinearProgress-bar": { bgcolor: "#F7921E" },
+                          bgcolor: alpha(statColors.orange, 0.1),
+                          "& .MuiLinearProgress-bar": {
+                            bgcolor: statColors.orange,
+                          },
                         }}
                       />
                     )}
@@ -311,14 +238,14 @@ export function DashboardPage() {
                       width: 40,
                       height: 40,
                       borderRadius: 1.5,
-                      bgcolor: alpha("#8B5CF6", 0.1),
+                      bgcolor: alpha(statColors.purple, 0.1),
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       mr: 2,
                     }}
                   >
-                    <CategoryIcon sx={{ color: "#8B5CF6" }} />
+                    <CategoryIcon sx={{ color: statColors.purple }} />
                   </Box>
                   <ListItemText
                     primary="Menu Categories"
@@ -339,8 +266,10 @@ export function DashboardPage() {
                         sx={{
                           height: 8,
                           borderRadius: 4,
-                          bgcolor: alpha("#8B5CF6", 0.1),
-                          "& .MuiLinearProgress-bar": { bgcolor: "#8B5CF6" },
+                          bgcolor: alpha(statColors.purple, 0.1),
+                          "& .MuiLinearProgress-bar": {
+                            bgcolor: statColors.purple,
+                          },
                         }}
                       />
                     )}
@@ -354,14 +283,14 @@ export function DashboardPage() {
                       width: 40,
                       height: 40,
                       borderRadius: 1.5,
-                      bgcolor: alpha("#3B82F6", 0.1),
+                      bgcolor: alpha(statColors.blue, 0.1),
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       mr: 2,
                     }}
                   >
-                    <EventIcon sx={{ color: "#3B82F6" }} />
+                    <EventIcon sx={{ color: statColors.blue }} />
                   </Box>
                   <ListItemText
                     primary="Events"
@@ -382,8 +311,10 @@ export function DashboardPage() {
                         sx={{
                           height: 8,
                           borderRadius: 4,
-                          bgcolor: alpha("#3B82F6", 0.1),
-                          "& .MuiLinearProgress-bar": { bgcolor: "#3B82F6" },
+                          bgcolor: alpha(statColors.blue, 0.1),
+                          "& .MuiLinearProgress-bar": {
+                            bgcolor: statColors.blue,
+                          },
                         }}
                       />
                     )}
@@ -397,14 +328,14 @@ export function DashboardPage() {
                       width: 40,
                       height: 40,
                       borderRadius: 1.5,
-                      bgcolor: alpha("#10B981", 0.1),
+                      bgcolor: alpha(statColors.green, 0.1),
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       mr: 2,
                     }}
                   >
-                    <SpecialsIcon sx={{ color: "#10B981" }} />
+                    <SpecialsIcon sx={{ color: statColors.green }} />
                   </Box>
                   <ListItemText
                     primary="Specials"
@@ -425,8 +356,10 @@ export function DashboardPage() {
                         sx={{
                           height: 8,
                           borderRadius: 4,
-                          bgcolor: alpha("#10B981", 0.1),
-                          "& .MuiLinearProgress-bar": { bgcolor: "#10B981" },
+                          bgcolor: alpha(statColors.green, 0.1),
+                          "& .MuiLinearProgress-bar": {
+                            bgcolor: statColors.green,
+                          },
                         }}
                       />
                     )}
@@ -440,14 +373,14 @@ export function DashboardPage() {
                       width: 40,
                       height: 40,
                       borderRadius: 1.5,
-                      bgcolor: alpha("#F59E0B", 0.1),
+                      bgcolor: alpha(statColors.amber, 0.1),
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       mr: 2,
                     }}
                   >
-                    <EmailIcon sx={{ color: "#F59E0B" }} />
+                    <EmailIcon sx={{ color: statColors.amber }} />
                   </Box>
                   <ListItemText
                     primary="Newsletter Subscribers"
@@ -470,8 +403,10 @@ export function DashboardPage() {
                         sx={{
                           height: 8,
                           borderRadius: 4,
-                          bgcolor: alpha("#F59E0B", 0.1),
-                          "& .MuiLinearProgress-bar": { bgcolor: "#F59E0B" },
+                          bgcolor: alpha(statColors.amber, 0.1),
+                          "& .MuiLinearProgress-bar": {
+                            bgcolor: statColors.amber,
+                          },
                         }}
                       />
                     )}
@@ -542,8 +477,8 @@ function QuickActionItem({
 }: QuickActionItemProps) {
   return (
     <Box
-      component="a"
-      href={href}
+      component={Link}
+      to={href}
       sx={{
         display: "flex",
         alignItems: "center",
@@ -568,7 +503,7 @@ function QuickActionItem({
         <Typography variant="body2" fontWeight={600}>
           {title}
         </Typography>
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" sx={{ color: "inherit", opacity: 0.7 }}>
           {description}
         </Typography>
       </Box>

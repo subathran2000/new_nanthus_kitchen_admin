@@ -34,9 +34,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import toast from "react-hot-toast";
 import { format } from "date-fns";
-import api from "../../lib/api";
+
+import api, { getErrorMessage } from "../../lib/api";
 import { useAuth } from "../../contexts/AuthContext";
 import type { User, UserRole } from "../../types";
+import { PageHeader, ConfirmDialog } from "@/components/shared";
 
 interface UserForm {
   email: string;
@@ -93,8 +95,8 @@ export function UsersPage() {
       toast.success("User created successfully");
       handleCloseDialog();
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Failed to create user");
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -114,8 +116,8 @@ export function UsersPage() {
       toast.success("User updated successfully");
       handleCloseDialog();
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Failed to update user");
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -130,8 +132,8 @@ export function UsersPage() {
       setDeleteDialogOpen(false);
       setDeletingItem(null);
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Failed to delete user");
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -309,35 +311,26 @@ export function UsersPage() {
 
   return (
     <Box>
-      <Box
-        display="flex"
-        justifyContent="space-between"
-        alignItems="center"
-        mb={3}
-      >
-        <Box>
-          <Typography variant="h4" fontWeight={700} gutterBottom>
-            Users
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Manage admin users and staff
-          </Typography>
-        </Box>
-        <Box display="flex" gap={1}>
-          <Tooltip title="Refresh">
-            <IconButton onClick={() => refetch()}>
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleOpenCreate}
-          >
-            Add User
-          </Button>
-        </Box>
-      </Box>
+      <PageHeader
+        title="Users"
+        description="Manage admin accounts and staff access"
+        actions={
+          <Box display="flex" gap={1}>
+            <Tooltip title="Refresh">
+              <IconButton onClick={() => refetch()}>
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleOpenCreate}
+            >
+              Add User
+            </Button>
+          </Box>
+        }
+      />
 
       <Paper sx={{ height: 600, width: "100%" }}>
         <DataGrid
@@ -396,6 +389,12 @@ export function UsersPage() {
                     : {
                         value: 8,
                         message: "Password must be at least 8 characters",
+                      },
+                  pattern: editingItem
+                    ? undefined
+                    : {
+                        value: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*])/,
+                        message: "Must include uppercase, lowercase, number, and special character",
                       },
                 }}
                 render={({ field }) => (
@@ -530,32 +529,14 @@ export function UsersPage() {
         </form>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog
+      <ConfirmDialog
         open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-      >
-        <DialogTitle>Delete User</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to delete "{deletingItem?.firstName}{" "}
-            {deletingItem?.lastName}"? This action cannot be undone.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-          <Button
-            color="error"
-            variant="contained"
-            onClick={() =>
-              deletingItem && deleteMutation.mutate(deletingItem.id)
-            }
-            disabled={deleteMutation.isPending}
-          >
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
+        title="Delete User"
+        description={`Are you sure you want to delete "${deletingItem?.firstName} ${deletingItem?.lastName}"? This action cannot be undone.`}
+        onConfirm={() => deletingItem && deleteMutation.mutate(deletingItem.id)}
+        onCancel={() => setDeleteDialogOpen(false)}
+        loading={deleteMutation.isPending}
+      />
     </Box>
   );
 }

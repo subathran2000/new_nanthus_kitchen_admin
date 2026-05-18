@@ -51,9 +51,11 @@ import { CSS } from "@dnd-kit/utilities";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import toast from "react-hot-toast";
-import api from "../../lib/api";
+
+import api, { getErrorMessage } from "../../lib/api";
 import { useAuth } from "../../contexts/AuthContext";
 import type { MenuCategory, PrimaryCategory } from "../../types";
+import { PageHeader, ConfirmDialog } from "@/components/shared";
 
 interface MenuCategoryForm {
   name: string;
@@ -110,7 +112,7 @@ function SortableCategoryItem({
           display: "flex",
           alignItems: "center",
           p: 2,
-          bgcolor: isDragging ? alpha("#1976d2", 0.05) : "background.paper",
+          bgcolor: isDragging ? (theme) => alpha(theme.palette.primary.main, 0.05) : "background.paper",
         }}
       >
         {canEdit && (
@@ -118,6 +120,7 @@ function SortableCategoryItem({
             {...attributes}
             {...listeners}
             size="small"
+            aria-label={`Reorder ${category.name}`}
             sx={{ cursor: "grab", mr: 1 }}
           >
             <DragIndicator />
@@ -267,11 +270,8 @@ export function MenuCategoriesPage() {
       toast.success("Menu category created successfully");
       handleCloseDialog();
     },
-    onError: (error: any) => {
-      const message =
-        error.response?.data?.message ||
-        "Failed to create menu category. Please check your input.";
-      toast.error(message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -292,11 +292,8 @@ export function MenuCategoriesPage() {
       toast.success("Menu category updated successfully");
       handleCloseDialog();
     },
-    onError: (error: any) => {
-      const message =
-        error.response?.data?.message ||
-        "Failed to update menu category. Please try again.";
-      toast.error(message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -312,11 +309,8 @@ export function MenuCategoriesPage() {
       setDeleteDialogOpen(false);
       setDeletingItem(null);
     },
-    onError: (error: any) => {
-      const message =
-        error.response?.data?.message ||
-        "Cannot delete this category. It may have menu items associated with it.";
-      toast.error(message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -442,38 +436,28 @@ export function MenuCategoriesPage() {
 
   return (
     <Box>
-      <Box
-        display="flex"
-        justifyContent="space-between"
-        alignItems="center"
-        mb={3}
-      >
-        <Box>
-          <Typography variant="h4" fontWeight={700} gutterBottom>
-            Menu Categories
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Manage subcategories within primary categories. Select a primary
-            category to reorder.
-          </Typography>
-        </Box>
-        <Box display="flex" gap={1}>
-          <Tooltip title="Refresh">
-            <IconButton onClick={() => refetch()}>
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
-          {canEdit && (
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleOpenCreate}
-            >
-              Add Category
-            </Button>
-          )}
-        </Box>
-      </Box>
+      <PageHeader
+        title="Menu Categories"
+        description="Manage subcategories within primary categories. Select a primary category to reorder."
+        actions={
+          <Box display="flex" gap={1}>
+            <Tooltip title="Refresh">
+              <IconButton onClick={() => refetch()}>
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
+            {canEdit && (
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={handleOpenCreate}
+              >
+                Add Category
+              </Button>
+            )}
+          </Box>
+        }
+      />
 
       {/* Tab Navigation for Primary Categories */}
       <Card sx={{ mb: 2 }}>
@@ -716,33 +700,14 @@ export function MenuCategoriesPage() {
         </form>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog
+      <ConfirmDialog
         open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-      >
-        <DialogTitle>Delete Menu Category</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to delete "{deletingItem?.name}"? This action
-            cannot be undone. All menu items in this category must be moved or
-            deleted first.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-          <Button
-            color="error"
-            variant="contained"
-            onClick={() =>
-              deletingItem && deleteMutation.mutate(deletingItem.id)
-            }
-            disabled={deleteMutation.isPending}
-          >
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
+        title="Delete Menu Category"
+        description={`Are you sure you want to delete "${deletingItem?.name}"? This action cannot be undone. All menu items in this category must be moved or deleted first.`}
+        onConfirm={() => deletingItem && deleteMutation.mutate(deletingItem.id)}
+        onCancel={() => setDeleteDialogOpen(false)}
+        loading={deleteMutation.isPending}
+      />
     </Box>
   );
 }

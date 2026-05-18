@@ -34,9 +34,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import toast from "react-hot-toast";
 import { format, subDays, isAfter } from "date-fns";
-import api from "../../lib/api";
+
+import api, { getErrorMessage } from "../../lib/api";
 import { useAuth } from "../../contexts/AuthContext";
 import type { NewsletterSubscriber } from "../../types";
+import { PageHeader, StatCard, ConfirmDialog } from "@/components/shared";
+import { statColors } from "@/theme/tokens";
 
 interface SubscriberForm {
   email: string;
@@ -55,6 +58,7 @@ export function NewsletterSubscribersPage() {
   const [deletingItem, setDeletingItem] = useState<NewsletterSubscriber | null>(
     null,
   );
+  const [searchQuery, setSearchQuery] = useState("");
 
   const {
     control,
@@ -89,6 +93,12 @@ export function NewsletterSubscribersPage() {
 
   const subscribers: NewsletterSubscriber[] = data?.data || [];
 
+  const filteredSubscribers = searchQuery
+    ? subscribers.filter((s) =>
+        s.email.toLowerCase().includes(searchQuery.toLowerCase()),
+      )
+    : subscribers;
+
   // Stats calculations
   const totalSubscribers = subscribers.length;
   const thirtyDaysAgo = subDays(new Date(), 30);
@@ -110,8 +120,8 @@ export function NewsletterSubscribersPage() {
       toast.success("Subscriber added successfully");
       handleCloseDialog();
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Failed to add subscriber");
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -153,10 +163,9 @@ export function NewsletterSubscribersPage() {
       setDeleteDialogOpen(false);
       setDeletingItem(null);
     },
-    onError: (error: any) => {
-      toast.error(
-        error.response?.data?.message || "Failed to delete subscriber",
-      );
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { message?: string } } };
+      toast.error(err.response?.data?.message || "Failed to delete subscriber");
     },
   });
 
@@ -278,120 +287,78 @@ export function NewsletterSubscribersPage() {
   return (
     <Box>
       {/* Header */}
-      <Box
-        display="flex"
-        justifyContent="space-between"
-        alignItems="center"
-        mb={3}
-      >
-        <Box>
-          <Typography variant="h4" fontWeight={700} gutterBottom>
-            Subscribers
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Manage your newsletter mailing list
-          </Typography>
-        </Box>
-        <Box display="flex" gap={1}>
-          <Tooltip title="Refresh">
-            <IconButton onClick={() => refetch()}>
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
-          <Button
-            variant="outlined"
-            startIcon={<DownloadIcon />}
-            onClick={handleExport}
-            disabled={subscribers.length === 0}
-          >
-            Export CSV
-          </Button>
-          {canEdit && (
-            <>
-              <Button
-                variant="outlined"
-                startIcon={<UploadIcon />}
-                onClick={() => setBulkDialogOpen(true)}
-              >
-                Bulk Import
-              </Button>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={handleOpenCreate}
-              >
-                Add Subscriber
-              </Button>
-            </>
-          )}
-        </Box>
-      </Box>
+      <PageHeader
+        title="Newsletter Subscribers"
+        description="Manage your newsletter mailing list and subscriber details"
+        actions={
+          <Box display="flex" gap={1}>
+            <Tooltip title="Refresh">
+              <IconButton onClick={() => refetch()}>
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
+            <Button
+              variant="outlined"
+              startIcon={<DownloadIcon />}
+              onClick={handleExport}
+              disabled={subscribers.length === 0}
+            >
+              Export CSV
+            </Button>
+            {canEdit && (
+              <>
+                <Button
+                  variant="outlined"
+                  startIcon={<UploadIcon />}
+                  onClick={() => setBulkDialogOpen(true)}
+                >
+                  Bulk Import
+                </Button>
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={handleOpenCreate}
+                >
+                  Add Subscriber
+                </Button>
+              </>
+            )}
+          </Box>
+        }
+      />
 
       {/* Stats Cards */}
       <Grid container spacing={2} mb={3}>
         <Grid size={{ xs: 12, sm: 4 }}>
-          <Card>
-            <CardContent sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-              <Box
-                sx={{ p: 1.5, borderRadius: 2, bgcolor: alpha("#F7921E", 0.1) }}
-              >
-                <PeopleIcon sx={{ color: "#F7921E" }} />
-              </Box>
-              <Box>
-                <Typography variant="h4" fontWeight={700}>
-                  {totalSubscribers}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Total Subscribers
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
+          <StatCard
+            title="Total Subscribers"
+            value={totalSubscribers}
+            icon={<PeopleIcon />}
+            color={statColors.orange}
+          />
         </Grid>
         <Grid size={{ xs: 12, sm: 4 }}>
-          <Card>
-            <CardContent sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-              <Box
-                sx={{ p: 1.5, borderRadius: 2, bgcolor: alpha("#4caf50", 0.1) }}
-              >
-                <TrendingUpIcon sx={{ color: "#4caf50" }} />
-              </Box>
-              <Box>
-                <Typography variant="h4" fontWeight={700}>
-                  {newThisMonth}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  New This Month
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
+          <StatCard
+            title="New This Month"
+            value={newThisMonth}
+            icon={<TrendingUpIcon />}
+            color={statColors.green}
+          />
         </Grid>
         <Grid size={{ xs: 12, sm: 4 }}>
-          <Card>
-            <CardContent sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-              <Box
-                sx={{ p: 1.5, borderRadius: 2, bgcolor: alpha("#2196f3", 0.1) }}
-              >
-                <CalendarIcon sx={{ color: "#2196f3" }} />
-              </Box>
-              <Box>
-                <Typography variant="h4" fontWeight={700}>
-                  {newThisWeek}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  New This Week
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
+          <StatCard
+            title="New This Week"
+            value={newThisWeek}
+            icon={<CalendarIcon />}
+            color={statColors.blue}
+          />
         </Grid>
       </Grid>
 
       {/* Data Grid */}
       <Paper sx={{ height: 500, width: "100%" }}>
         <DataGrid
-          rows={subscribers}
+          rows={filteredSubscribers}
           columns={columns}
           loading={isLoading}
           pageSizeOptions={[10, 25, 50, 100]}
@@ -406,7 +373,9 @@ export function NewsletterSubscribersPage() {
                 <TextField
                   size="small"
                   placeholder="Search by email..."
-                  sx={{ width: 300 }}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  sx={{ width: { xs: "100%", sm: 300 } }}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -523,35 +492,15 @@ bob@example.com`}
         </form>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog
+      <ConfirmDialog
         open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-      >
-        <DialogTitle>Remove Subscriber</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to remove{" "}
-            <strong>{deletingItem?.email}</strong> from your mailing list?
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            They will no longer receive your newsletters.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-          <Button
-            color="error"
-            variant="contained"
-            onClick={() =>
-              deletingItem && deleteMutation.mutate(deletingItem.id)
-            }
-            disabled={deleteMutation.isPending}
-          >
-            Remove
-          </Button>
-        </DialogActions>
-      </Dialog>
+        title="Remove Subscriber"
+        description={`Are you sure you want to remove ${deletingItem?.email} from your mailing list? They will no longer receive your newsletters.`}
+        confirmLabel="Remove"
+        onConfirm={() => deletingItem && deleteMutation.mutate(deletingItem.id)}
+        onCancel={() => setDeleteDialogOpen(false)}
+        loading={deleteMutation.isPending}
+      />
     </Box>
   );
 }

@@ -53,9 +53,11 @@ import { CSS } from "@dnd-kit/utilities";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
-import api from "@/lib/api";
+
+import api, { getErrorMessage } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { PrimaryCategory, MenuCategory } from "@/types";
+import { PageHeader, ConfirmDialog } from "@/components/shared";
 
 interface FormData {
   name: string;
@@ -117,7 +119,7 @@ function SortableItem({
           display: "flex",
           alignItems: "center",
           p: 2,
-          bgcolor: isDragging ? alpha("#1976d2", 0.05) : "background.paper",
+          bgcolor: isDragging ? (theme) => alpha(theme.palette.primary.main, 0.05) : "background.paper",
         }}
       >
         {canEdit && (
@@ -125,6 +127,7 @@ function SortableItem({
             {...attributes}
             {...listeners}
             size="small"
+            aria-label={`Reorder ${category.name}`}
             sx={{ cursor: "grab", mr: 1 }}
           >
             <DragIndicator />
@@ -201,7 +204,7 @@ function SortableItem({
       <Collapse in={expanded}>
         <Box
           sx={{
-            bgcolor: "grey.50",
+            bgcolor: "background.default",
             borderTop: "1px solid",
             borderColor: "divider",
           }}
@@ -257,7 +260,7 @@ export function PrimaryCategoriesPage() {
     isLoading,
     refetch,
   } = useQuery<PrimaryCategory[]>({
-    queryKey: ["primary-categories"],
+    queryKey: ["primaryCategories"],
     queryFn: async () => {
       const response = await api.get("/menu/primary-categories");
       return response.data;
@@ -269,23 +272,23 @@ export function PrimaryCategoriesPage() {
     handleSubmit,
     reset,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<FormData>({
     defaultValues: { name: "", description: "", isActive: true },
   });
 
+  const isActiveValue = watch("isActive");
+
   const createMutation = useMutation({
     mutationFn: (data: FormData) => api.post("/menu/primary-categories", data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["primary-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["primaryCategories"] });
       toast.success("Primary category created successfully");
       handleCloseDialog();
     },
-    onError: (error: any) => {
-      const message =
-        error.response?.data?.message ||
-        "Failed to create primary category. Please check your input and try again.";
-      toast.error(message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -293,31 +296,25 @@ export function PrimaryCategoriesPage() {
     mutationFn: ({ id, data }: { id: string; data: FormData }) =>
       api.patch(`/menu/primary-categories/${id}`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["primary-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["primaryCategories"] });
       toast.success("Primary category updated successfully");
       handleCloseDialog();
     },
-    onError: (error: any) => {
-      const message =
-        error.response?.data?.message ||
-        "Failed to update primary category. Please try again.";
-      toast.error(message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/menu/primary-categories/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["primary-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["primaryCategories"] });
       toast.success("Primary category deleted successfully");
       setDeleteDialogOpen(false);
       setDeletingItem(null);
     },
-    onError: (error: any) => {
-      const message =
-        error.response?.data?.message ||
-        "Failed to delete primary category. It may have associated categories.";
-      toast.error(message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -325,7 +322,7 @@ export function PrimaryCategoriesPage() {
     mutationFn: (items: { id: string; sortOrder: number }[]) =>
       api.patch("/menu/primary-categories/reorder", { items }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["primary-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["primaryCategories"] });
     },
     onError: () => {
       toast.error("Failed to reorder categories");
@@ -348,7 +345,7 @@ export function PrimaryCategoriesPage() {
         const newOrder = arrayMove(categories, oldIndex, newIndex);
 
         // Update local state optimistically
-        queryClient.setQueryData(["primary-categories"], newOrder);
+        queryClient.setQueryData(["primaryCategories"], newOrder);
 
         // Send reorder request with new sort orders
         const reorderItems = newOrder.map(
@@ -413,39 +410,28 @@ export function PrimaryCategoriesPage() {
 
   return (
     <Box>
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          mb: 3,
-        }}
-      >
-        <Box>
-          <Typography variant="h4" fontWeight={700} gutterBottom>
-            Primary Categories
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Manage top-level menu categories. Drag to reorder.
-          </Typography>
-        </Box>
-        <Box sx={{ display: "flex", gap: 1 }}>
-          <Tooltip title="Refresh">
-            <IconButton onClick={() => refetch()}>
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
-          {canEdit && (
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={() => handleOpenDialog()}
-            >
-              Add Category
-            </Button>
-          )}
-        </Box>
-      </Box>
+      <PageHeader
+        title="Primary Categories"
+        description="Manage top-level menu categories. Drag to reorder."
+        actions={
+          <Box sx={{ display: "flex", gap: 1 }}>
+            <Tooltip title="Refresh">
+              <IconButton onClick={() => refetch()}>
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
+            {canEdit && (
+              <Button
+                variant="contained"
+                startIcon={<Add />}
+                onClick={() => handleOpenDialog()}
+              >
+                Add Category
+              </Button>
+            )}
+          </Box>
+        }
+      />
 
       {/* Summary Stats */}
       <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
@@ -544,7 +530,7 @@ export function PrimaryCategoriesPage() {
               {...register("description")}
             />
             <FormControlLabel
-              control={<Switch {...register("isActive")} defaultChecked />}
+              control={<Switch {...register("isActive")} checked={!!isActiveValue} />}
               label="Active"
               sx={{ mt: 2 }}
             />
@@ -562,33 +548,14 @@ export function PrimaryCategoriesPage() {
         </form>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog
+      <ConfirmDialog
         open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-      >
-        <DialogTitle>Delete Primary Category</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to delete "{deletingItem?.name}"? This action
-            cannot be undone. All associated menu categories must be deleted
-            first.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-          <Button
-            color="error"
-            variant="contained"
-            onClick={() =>
-              deletingItem && deleteMutation.mutate(deletingItem.id)
-            }
-            disabled={deleteMutation.isPending}
-          >
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
+        title="Delete Primary Category"
+        description={`Are you sure you want to delete "${deletingItem?.name}"? This action cannot be undone. All associated menu categories must be deleted first.`}
+        onConfirm={() => deletingItem && deleteMutation.mutate(deletingItem.id)}
+        onCancel={() => setDeleteDialogOpen(false)}
+        loading={deleteMutation.isPending}
+      />
     </Box>
   );
 }
