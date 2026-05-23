@@ -6,7 +6,7 @@ import toast from "react-hot-toast";
 // In production, use relative URL to go through nginx proxy
 // In development, derive WebSocket URL from API URL
 const isProduction = import.meta.env.PROD;
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+const API_URL = import.meta.env.VITE_API_URL as string;
 
 // For production: use empty string (relative URL) so socket.io uses same origin
 // For development: use the base URL without /api

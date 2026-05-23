@@ -6,7 +6,7 @@ import { ApiError } from "@/types";
 const isProduction = import.meta.env.PROD;
 const API_URL = isProduction 
   ? "/api"  // Relative URL - goes through nginx proxy, enabling same-origin cookies
-  : (import.meta.env.VITE_API_URL || "http://localhost:3000/api");
+  : (import.meta.env.VITE_API_URL as string);
 
 // Base URL without /api for static files
 // In production, use relative path; in development, extract from API_URL
