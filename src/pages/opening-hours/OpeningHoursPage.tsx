@@ -31,6 +31,7 @@ import { parse, format } from "date-fns";
 import api, { getErrorMessage } from "../../lib/api";
 import { formatCurrentDateTimeInToronto } from "../../lib/timezone";
 import { useAuth } from "../../contexts/AuthContext";
+import { useAdminLocation } from "../../contexts/LocationContext";
 import type { OpeningHours, DayOfWeek, Location } from "../../types";
 import { PageHeader } from "@/components/shared";
 
@@ -72,13 +73,21 @@ const formatTimeToString = (date: Date | null): string | null => {
 
 export function OpeningHoursPage() {
   const { canEdit } = useAuth();
+  const { location: adminLocation, setLocation: setAdminLocation } = useAdminLocation();
   const queryClient = useQueryClient();
-  const [tabValue, setTabValue] = useState<Location>("markham");
+  const [tabValue, setTabValue] = useState<Location>(adminLocation as Location);
   const [hours, setHours] = useState<DayHours[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
   const [currentTime, setCurrentTime] = useState("");
   const [pendingTab, setPendingTab] = useState<Location | null>(null);
   const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
+
+  // Sync tab when global location changes (no unsaved-changes guard — global switch wins)
+  useEffect(() => {
+    if (adminLocation !== tabValue && !hasChanges) {
+      setTabValue(adminLocation as Location);
+    }
+  }, [adminLocation]);
 
   // Update Toronto time clock every second
   useEffect(() => {
@@ -265,12 +274,14 @@ export function OpeningHoursPage() {
       setUnsavedDialogOpen(true);
     } else {
       setTabValue(newValue);
+      setAdminLocation(newValue as "scarborough" | "markham");
     }
   };
 
   const handleConfirmTabSwitch = () => {
     if (pendingTab) {
       setTabValue(pendingTab);
+      setAdminLocation(pendingTab as "scarborough" | "markham");
       setPendingTab(null);
     }
     setUnsavedDialogOpen(false);

@@ -81,12 +81,17 @@ export interface MenuItemMeasurement {
   price: number;
 }
 
+export type LocationAvailability = "both" | "scarborough" | "markham";
+
 // Menu item - updated to match backend entity
 export interface MenuItem {
   id: string;
   name: string;
   description?: string;
-  price?: number; // Base price when hasMeasurements is false
+  price?: number; // Base price (used when priceScarborough/priceMarkham are null)
+  priceScarborough?: number | null; // Override price for Scarborough
+  priceMarkham?: number | null; // Override price for Markham
+  locationAvailability: LocationAvailability; // Which location(s) this item is available at
   allergens?: Allergen[];
   dietaryInfo?: DietaryInfo[];
   isAvailable: boolean;

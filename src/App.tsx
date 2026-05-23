@@ -10,6 +10,7 @@ import { LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { useThemeMode } from "./hooks/useThemeMode";
 import { AuthProvider } from "./contexts/AuthContext";
+import { LocationProvider } from "./contexts/LocationContext";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { DashboardLayout } from "./components/layout/DashboardLayout";
 import { ScrollToTop } from "./components/ScrollToTop";
@@ -113,6 +114,7 @@ function App() {
           <BrowserRouter>
             <ScrollToTop />
             <AuthProvider>
+              <LocationProvider>
               <Suspense fallback={<PageLoader />}>
                 <Routes>
                   {/* Public Routes */}
@@ -221,6 +223,7 @@ function App() {
                   <Route path="*" element={<Navigate to="/login" replace />} />
                 </Routes>
               </Suspense>
+              </LocationProvider>
             </AuthProvider>
           </BrowserRouter>
         </LocalizationProvider>

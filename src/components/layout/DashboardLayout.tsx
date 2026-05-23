@@ -42,10 +42,13 @@ import {
   AccessTime as AccessTimeIcon,
 } from "@mui/icons-material";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAdminLocation } from "@/contexts/LocationContext";
 import { formatCurrentDateTimeInToronto } from "@/lib/timezone";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useThemeModeContext } from "@/App";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
+import { ToggleButton, ToggleButtonGroup } from "@mui/material";
+import StorefrontIcon from "@mui/icons-material/Storefront";
 
 const DRAWER_WIDTH = 280;
 
@@ -156,6 +159,8 @@ export function DashboardLayout() {
   const { mode, toggleMode } = useThemeModeContext();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const { location: adminLocation, setLocation: setAdminLocation } = useAdminLocation();
 
   // Initialize WebSocket connection for real-time updates
   useWebSocket();
@@ -405,6 +410,22 @@ export function DashboardLayout() {
             <MenuIcon />
           </IconButton>
           <Box sx={{ flex: 1 }} />
+          <ToggleButtonGroup
+            value={adminLocation}
+            exclusive
+            onChange={(_, val) => val && setAdminLocation(val)}
+            size="small"
+            sx={{ mr: 1.5 }}
+          >
+            <ToggleButton value="scarborough" sx={{ px: 1.5, fontSize: "0.75rem" }}>
+              <StorefrontIcon sx={{ fontSize: 16, mr: 0.5 }} />
+              Scarborough
+            </ToggleButton>
+            <ToggleButton value="markham" sx={{ px: 1.5, fontSize: "0.75rem" }}>
+              <StorefrontIcon sx={{ fontSize: 16, mr: 0.5 }} />
+              Markham
+            </ToggleButton>
+          </ToggleButtonGroup>
           <Box
             sx={{
               display: "flex",

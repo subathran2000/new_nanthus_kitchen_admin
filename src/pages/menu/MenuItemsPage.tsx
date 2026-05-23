@@ -37,12 +37,14 @@ import toast from "react-hot-toast";
 
 import api, { getImageUrl, getErrorMessage } from "../../lib/api";
 import { useAuth } from "../../contexts/AuthContext";
+import { useAdminLocation } from "../../contexts/LocationContext";
 import type {
   MenuItem,
   MenuCategory,
   MeasurementType,
   DietaryInfo,
   Allergen,
+  LocationAvailability,
 } from "../../types";
 import { PageHeader, ConfirmDialog, ImageUpload } from "@/components/shared";
 
@@ -74,10 +76,19 @@ interface MeasurementPricing {
   price: number | string;
 }
 
+const LOCATION_OPTIONS: { value: LocationAvailability; label: string }[] = [
+  { value: "both", label: "Both locations" },
+  { value: "scarborough", label: "Scarborough only" },
+  { value: "markham", label: "Markham only" },
+];
+
 interface MenuItemForm {
   name: string;
   description: string;
   price?: number | string;
+  priceScarborough?: number | string;
+  priceMarkham?: number | string;
+  locationAvailability: LocationAvailability;
   categoryId: string;
   dietaryInfo: DietaryInfo[];
   allergens: Allergen[];
@@ -88,6 +99,7 @@ interface MenuItemForm {
 
 export function MenuItemsPage() {
   const { canEdit } = useAuth();
+  const { location: adminLocation } = useAdminLocation();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
@@ -108,6 +120,9 @@ export function MenuItemsPage() {
       name: "",
       description: "",
       price: "",
+      priceScarborough: "",
+      priceMarkham: "",
+      locationAvailability: "both" as LocationAvailability,
       categoryId: "",
       dietaryInfo: [],
       allergens: [],
@@ -123,10 +138,11 @@ export function MenuItemsPage() {
   });
 
   const hasMeasurements = watch("hasMeasurements");
+  const locationAvailability = watch("locationAvailability");
 
-  // Fetch menu items - corrected endpoint
+  // Fetch all menu items, then filter client-side by global location
   const {
-    data: items = [],
+    data: allItems = [],
     isLoading,
     refetch,
   } = useQuery({
@@ -136,6 +152,12 @@ export function MenuItemsPage() {
       return response.data;
     },
   });
+
+  const items = allItems.filter(
+    (item: MenuItem) =>
+      item.locationAvailability === "both" ||
+      item.locationAvailability === adminLocation,
+  );
 
   // Fetch menu categories for dropdown - corrected endpoint
   const { data: categories = [] } = useQuery({
@@ -243,6 +265,9 @@ export function MenuItemsPage() {
       name: "",
       description: "",
       price: "",
+      priceScarborough: "",
+      priceMarkham: "",
+      locationAvailability: "both",
       categoryId: "",
       dietaryInfo: [],
       allergens: [],
@@ -262,6 +287,9 @@ export function MenuItemsPage() {
       name: item.name,
       description: item.description || "",
       price: item.price || "",
+      priceScarborough: item.priceScarborough ?? "",
+      priceMarkham: item.priceMarkham ?? "",
+      locationAvailability: item.locationAvailability ?? "both",
       categoryId: item.categoryId || item.category?.id || "",
       dietaryInfo: item.dietaryInfo || [],
       allergens: item.allergens || [],
@@ -305,10 +333,19 @@ export function MenuItemsPage() {
       }
     }
 
+    const parseOptionalPrice = (v: number | string | undefined | null) => {
+      if (v === "" || v === undefined || v === null) return null;
+      const n = typeof v === "string" ? parseFloat(v) : v;
+      return isNaN(n) ? null : n;
+    };
+
     // Clean up measurements if not using them
     const submitData = {
       ...data,
       imageUrls,
+      locationAvailability: data.locationAvailability,
+      priceScarborough: parseOptionalPrice(data.priceScarborough) as number | undefined,
+      priceMarkham: parseOptionalPrice(data.priceMarkham) as number | undefined,
       measurements: data.hasMeasurements
         ? data.measurements.map((m) => ({
             measurementTypeId: m.measurementTypeId,
@@ -404,6 +441,17 @@ export function MenuItemsPage() {
           )}
         </Box>
       ),
+    },
+    {
+      field: "locationAvailability",
+      headerName: "Location",
+      width: 130,
+      renderCell: (params) => {
+        const val: string = params.value ?? "both";
+        const color = val === "both" ? "default" : val === "scarborough" ? "warning" : "info";
+        const label = val === "both" ? "Both" : val === "scarborough" ? "Scarborough" : "Markham";
+        return <Chip label={label} color={color} size="small" />;
+      },
     },
     {
       field: "isAvailable",
@@ -539,6 +587,24 @@ export function MenuItemsPage() {
                     )}
                   />
 
+                  {/* Location Availability */}
+                  <Controller
+                    name="locationAvailability"
+                    control={control}
+                    render={({ field }) => (
+                      <FormControl fullWidth>
+                        <InputLabel>Location availability</InputLabel>
+                        <Select {...field} label="Location availability">
+                          {LOCATION_OPTIONS.map((opt) => (
+                            <MuiMenuItem key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </MuiMenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    )}
+                  />
+
                   {/* Pricing Section */}
                   <Box
                     sx={{
@@ -565,91 +631,100 @@ export function MenuItemsPage() {
                     />
 
                     {!hasMeasurements ? (
-                      <Controller
-                        name="price"
-                        control={control}
-                        rules={{
-                          required: !hasMeasurements
-                            ? "Price is required"
-                            : false,
-                          validate: (value) => {
-                            if (!hasMeasurements) {
-                              const numValue =
-                                typeof value === "string"
-                                  ? parseFloat(value)
-                                  : value;
-                              if (
-                                isNaN(numValue as number) ||
-                                (numValue as number) < 0
-                              ) {
-                                return "Price must be a positive number";
-                              }
-                            }
-                            return true;
-                          },
-                        }}
-                        render={({ field }) => (
-                          <TextField
-                            {...field}
-                            label="Price"
-                            type="number"
-                            fullWidth
-                            sx={{ mt: 2 }}
-                            error={!!errors.price}
-                            helperText={errors.price?.message}
-                            placeholder="0.00"
-                            slotProps={{
-                              input: {
-                                startAdornment: (
-                                  <InputAdornment position="start">
-                                    $
-                                  </InputAdornment>
-                                ),
-                              },
-                              htmlInput: {
-                                step: "0.01",
-                                min: "0",
-                              },
-                            }}
-                            value={field.value === 0 ? "" : field.value}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              field.onChange(val === "" ? "" : val);
-                            }}
-                          />
+                      <Box display="flex" flexDirection="column" gap={2} mt={2}>
+                        <Controller
+                          name="price"
+                          control={control}
+                          rules={{
+                            required: "Base price is required",
+                            validate: (value) => {
+                              const n = typeof value === "string" ? parseFloat(value) : value;
+                              if (isNaN(n as number) || (n as number) < 0) return "Price must be a positive number";
+                              return true;
+                            },
+                          }}
+                          render={({ field }) => (
+                            <TextField
+                              {...field}
+                              label={locationAvailability === "both" ? "Base price (default for both locations)" : "Price"}
+                              type="number"
+                              fullWidth
+                              error={!!errors.price}
+                              helperText={errors.price?.message}
+                              placeholder="0.00"
+                              slotProps={{
+                                input: { startAdornment: <InputAdornment position="start">$</InputAdornment> },
+                                htmlInput: { step: "0.01", min: "0" },
+                              }}
+                              value={field.value === 0 ? "" : field.value}
+                              onChange={(e) => { const val = e.target.value; field.onChange(val === "" ? "" : val); }}
+                            />
+                          )}
+                        />
+                        {locationAvailability === "both" && (
+                          <>
+                            <Typography variant="caption" color="text.secondary">
+                              Optional: set different prices per location (leave blank to use base price)
+                            </Typography>
+                            <Controller
+                              name="priceScarborough"
+                              control={control}
+                              render={({ field }) => (
+                                <TextField
+                                  {...field}
+                                  label="Scarborough price (override)"
+                                  type="number"
+                                  fullWidth
+                                  placeholder="Same as base price"
+                                  slotProps={{
+                                    input: { startAdornment: <InputAdornment position="start">$</InputAdornment> },
+                                    htmlInput: { step: "0.01", min: "0" },
+                                  }}
+                                  value={field.value === 0 ? "" : field.value}
+                                  onChange={(e) => { const v = e.target.value; field.onChange(v === "" ? "" : v); }}
+                                />
+                              )}
+                            />
+                            <Controller
+                              name="priceMarkham"
+                              control={control}
+                              render={({ field }) => (
+                                <TextField
+                                  {...field}
+                                  label="Markham price (override)"
+                                  type="number"
+                                  fullWidth
+                                  placeholder="Same as base price"
+                                  slotProps={{
+                                    input: { startAdornment: <InputAdornment position="start">$</InputAdornment> },
+                                    htmlInput: { step: "0.01", min: "0" },
+                                  }}
+                                  value={field.value === 0 ? "" : field.value}
+                                  onChange={(e) => { const v = e.target.value; field.onChange(v === "" ? "" : v); }}
+                                />
+                              )}
+                            />
+                          </>
                         )}
-                      />
+                      </Box>
                     ) : (
                       <Box mt={2}>
                         <Typography variant="subtitle2" gutterBottom>
                           Price Variations
                         </Typography>
                         {fields.map((field, index) => (
-                          <Box
-                            key={field.id}
-                            display="flex"
-                            gap={1}
-                            mb={1}
-                            alignItems="center"
-                          >
+                          <Box key={field.id} display="flex" gap={1} mb={1} alignItems="center">
                             <Controller
                               name={`measurements.${index}.measurementTypeId`}
                               control={control}
                               rules={{ required: "Size is required" }}
                               render={({ field }) => (
-                                <FormControl
-                                  sx={{ minWidth: 150 }}
-                                  size="small"
-                                >
+                                <FormControl sx={{ minWidth: 150 }} size="small">
                                   <InputLabel>Size</InputLabel>
                                   <Select {...field} label="Size">
-                                    {measurementTypes.map(
-                                      (mt: MeasurementType) => (
-                                        <MuiMenuItem key={mt.id} value={mt.id}>
-                                          {mt.name}
-                                        </MuiMenuItem>
-                                      ),
-                                    )}
+                                    {measurementTypes.map((mt: MeasurementType) => (
+                                      <MuiMenuItem key={mt.id} value={mt.id}>{mt.name}</MuiMenuItem>
+                                    ))}
                                   </Select>
                                 </FormControl>
                               )}
@@ -667,42 +742,20 @@ export function MenuItemsPage() {
                                   sx={{ width: 120 }}
                                   placeholder="0.00"
                                   slotProps={{
-                                    input: {
-                                      startAdornment: (
-                                        <InputAdornment position="start">
-                                          $
-                                        </InputAdornment>
-                                      ),
-                                    },
-                                    htmlInput: {
-                                      step: "0.01",
-                                      min: "0",
-                                    },
+                                    input: { startAdornment: <InputAdornment position="start">$</InputAdornment> },
+                                    htmlInput: { step: "0.01", min: "0" },
                                   }}
                                   value={field.value === 0 ? "" : field.value}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    field.onChange(val === "" ? "" : val);
-                                  }}
+                                  onChange={(e) => { const val = e.target.value; field.onChange(val === "" ? "" : val); }}
                                 />
                               )}
                             />
-                            <IconButton
-                              size="small"
-                              onClick={() => remove(index)}
-                              color="error"
-                            >
+                            <IconButton size="small" onClick={() => remove(index)} color="error">
                               <CloseIcon fontSize="small" />
                             </IconButton>
                           </Box>
                         ))}
-                        <Button
-                          size="small"
-                          startIcon={<AddIcon />}
-                          onClick={() =>
-                            append({ measurementTypeId: "", price: 0 })
-                          }
-                        >
+                        <Button size="small" startIcon={<AddIcon />} onClick={() => append({ measurementTypeId: "", price: 0 })}>
                           Add Variation
                         </Button>
                       </Box>
