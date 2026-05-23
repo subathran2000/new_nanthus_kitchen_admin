@@ -3,16 +3,7 @@ import { io, Socket } from "socket.io-client";
 import { useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 
-// In production, use relative URL to go through nginx proxy
-// In development, derive WebSocket URL from API URL
-const isProduction = import.meta.env.PROD;
-const API_URL = import.meta.env.VITE_API_URL as string;
-
-// For production: use empty string (relative URL) so socket.io uses same origin
-// For development: use the base URL without /api
-const WS_URL = isProduction 
-  ? "" 
-  : (import.meta.env.VITE_WS_URL || API_URL.replace(/\/api$/, ""));
+const WS_URL = import.meta.env.VITE_WS_URL as string;
 
 interface WebSocketMessage {
   type?: string;
@@ -91,20 +82,15 @@ export function useWebSocket() {
   }, [queryClient]);
 
   useEffect(() => {
-    // Create socket connection with fallback transport
-    // In production, WS_URL is empty so socket.io connects to the same origin (through nginx proxy)
-    const socketUrl = WS_URL ? `${WS_URL}/admin` : "/admin";
-    
-    socketRef.current = io(socketUrl, {
-      transports: ["polling", "websocket"], // Start with polling, upgrade to websocket
-      withCredentials: true, // Required for CORS with credentials
+    socketRef.current = io(`${WS_URL}/admin`, {
+      transports: ["polling", "websocket"],
+      withCredentials: true,
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 2000,
       reconnectionDelayMax: 10000,
       timeout: 20000,
       autoConnect: true,
-      path: isProduction ? "/socket.io" : undefined, // Use default path through nginx proxy
     });
 
     const socket = socketRef.current;

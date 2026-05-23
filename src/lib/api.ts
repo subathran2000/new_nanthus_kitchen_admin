@@ -1,18 +1,10 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { ApiError } from "@/types";
 
-// In production, use relative URL to go through nginx proxy (same-origin)
-// In development, use the configured API URL or default to localhost:3000
-const isProduction = import.meta.env.PROD;
-const API_URL = isProduction 
-  ? "/api"  // Relative URL - goes through nginx proxy, enabling same-origin cookies
-  : (import.meta.env.VITE_API_URL as string);
+const API_URL = import.meta.env.VITE_API_URL as string;
+if (!API_URL) throw new Error("VITE_API_URL environment variable is not set");
 
-// Base URL without /api for static files
-// In production, use relative path; in development, extract from API_URL
-const BASE_URL = isProduction 
-  ? "" 
-  : API_URL.replace(/\/api$/, "");
+const BASE_URL = API_URL.replace(/\/api$/, "");
 
 // Request timeout in milliseconds
 const REQUEST_TIMEOUT = 30000;
@@ -43,11 +35,6 @@ export function getImageUrl(path: string | null | undefined): string {
   }
   // Otherwise, prepend the base URL
   return `${BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
-}
-
-// Debug: Log API URL in development
-if (import.meta.env.DEV) {
-  console.log("[API] Base URL:", API_URL);
 }
 
 // Request interceptor
