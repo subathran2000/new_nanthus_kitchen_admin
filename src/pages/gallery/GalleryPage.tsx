@@ -364,7 +364,7 @@ export function GalleryPage() {
         const res = await api.post("/upload/single", fd, {
           headers: { "Content-Type": "multipart/form-data" },
         });
-        mediaUrl = res.data.path;
+        mediaUrl = res.data.url;
         mediaType = selectedFile.type.startsWith("video/") ? "video" : "image";
       }
 
