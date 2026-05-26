@@ -417,8 +417,8 @@ export function GalleryPage() {
     <Box>
       <PageHeader
         title="Gallery"
-        subtitle="Manage section titles and media displayed in the public gallery"
-        action={
+        description="Manage section titles and media displayed in the public gallery"
+        actions={
           <Box display="flex" gap={1} alignItems="center">
             <Tooltip title="Refresh">
               <IconButton
