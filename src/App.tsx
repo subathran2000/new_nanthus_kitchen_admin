@@ -88,6 +88,11 @@ const SettingsPage = lazy(() =>
     default: m.SettingsPage,
   })),
 );
+const GalleryPage = lazy(() =>
+  import("./pages/gallery/GalleryPage").then((m) => ({
+    default: m.GalleryPage,
+  })),
+);
 
 // Loading fallback component
 const PageLoader = () => (
@@ -167,6 +172,7 @@ function App() {
                       path="opening-hours"
                       element={<OpeningHoursPage />}
                     />
+                    <Route path="gallery" element={<GalleryPage />} />
 
                     {/* Newsletter - All authenticated users can view */}
                     <Route path="newsletter">

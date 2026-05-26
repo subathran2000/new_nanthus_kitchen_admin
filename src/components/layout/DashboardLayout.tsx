@@ -40,6 +40,7 @@ import {
   Campaign as CampaignIcon,
   Subscriptions as SubscribersIcon,
   AccessTime as AccessTimeIcon,
+  Collections as GalleryIcon,
 } from "@mui/icons-material";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminLocation } from "@/contexts/LocationContext";
@@ -97,6 +98,11 @@ const navItems: NavItem[] = [
     title: "Opening Hours",
     path: "/opening-hours",
     icon: <ScheduleIcon />,
+  },
+  {
+    title: "Gallery",
+    path: "/gallery",
+    icon: <GalleryIcon />,
   },
   {
     title: "Newsletter",

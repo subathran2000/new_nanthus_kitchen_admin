@@ -256,6 +256,40 @@ export interface NewsletterCampaign {
   updatedAt: string;
 }
 
+// Gallery types
+export type GalleryMediaType = "image" | "video";
+
+export interface GallerySection {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GalleryItem {
+  id: string;
+  title: string;
+  description?: string;
+  categoryId?: string | null;
+  category?: GallerySection | null;
+  mediaType: GalleryMediaType;
+  mediaUrl: string;
+  thumbnailUrl?: string;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GalleryGrouped {
+  category: GallerySection | null;
+  items: GalleryItem[];
+}
+
 // Common types
 export interface PaginatedResponse<T> {
   data: T[];
